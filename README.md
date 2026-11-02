@@ -29,9 +29,10 @@
 2. **SQL Editor → New query**에 [`supabase/schema.sql`](supabase/schema.sql) 내용을 붙여넣고 **Run**을 눌러요.
 3. **Authentication → Sign In / Providers → Email**에서 **Confirm email**을 꺼요.
    - 이렇게 하면 가입하자마자 바로 로그인할 수 있어요.
-4. **Project Settings → API**(또는 **Connect**)에서 아래 두 값을 복사해 [`config.js`](config.js)에 넣어요.
-   - **Project URL**
-   - **anon public** 키
+4. 아래 두 값을 복사해 [`config.js`](config.js)에 넣어요.
+   - **Project URL**: 위쪽 초록색 **Connect** 버튼, 또는 **Settings → Data API**에 있어요.
+   - **Publishable key** (`sb_publishable_...`): **Settings → API Keys**에 있어요.
+   - ⚠️ **secret 키**(`sb_secret_...`)는 절대 넣거나 공유하지 마세요.
 
 ### 2. GitHub Pages로 공개
 저장소의 **Settings → Pages → Build and deployment**로 가서 아래처럼 설정해요.
@@ -45,7 +46,7 @@
 2. 다른 사람이 가입하지 못하게 **Authentication → Sign In / Providers**에서 **Allow new users to sign up**을 꺼요.
 
 ## 보안 메모
-- `config.js`의 anon 키는 공개되어도 괜찮도록 만들어진 키예요.
+- `config.js`의 publishable 키는 공개되어도 괜찮도록 만들어진 키예요.
 - 문장 데이터는 Row Level Security로 **로그인한 본인만** 읽고 쓸 수 있어요.
 
 ## 구성
