@@ -20,7 +20,7 @@
   --c5: #ef7a3c; --c6: #9062aa; --c7: #f77ea6; --c8: #d42a2a;
   --c9: #12437c; --c10: #a4b76c; --c11: #6d1d5a; --c12: #77b4de;
 
-  --serif: "Noto Serif KR", "Nanum Myeongjo", "AppleMyungjo", "Batang", serif;
+  --serif: "마루 부리", "MaruBuri", "Nanum Myeongjo", "AppleMyungjo", "Batang", serif;
   --sans: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", system-ui, sans-serif;
   --radius: 14px;
   color-scheme: light;
@@ -28,7 +28,7 @@
 
 /* 내 폰트(29CM Editorial 등): 로그인 뒤 Supabase 비공개 보관함에서 받아 문장·제목에만 적용 */
 :root.custom-font {
-  --serif: "ArchiveCustom", "Noto Serif KR", "Nanum Myeongjo", "AppleMyungjo", "Batang", serif;
+  --serif: "ArchiveCustom", "마루 부리", "MaruBuri", "AppleMyungjo", "Batang", serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -626,6 +626,17 @@ dialog.sheet .paper-card { padding: 18px; }
 /* 맨 아래 작은 로그아웃 */
 .app-footer { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 28px; }
 .font-status { font-size: .72rem; color: var(--ink-faint); }
+.font-status:empty { display: none; }
+.font-pick { display: flex; align-items: center; gap: 6px; font-size: .74rem; color: var(--ink-faint); }
+.font-pick select {
+  font: inherit;
+  font-size: .74rem;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px 8px;
+}
 .app-footer .btn.link { color: var(--ink-faint); font-size: .8rem; }
 
 /* ---------- 사진 보기 ---------- */

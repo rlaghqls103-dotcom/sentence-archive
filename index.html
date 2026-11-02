@@ -17,10 +17,10 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=19">
+  <!-- 문장 글꼴: 마루부리 (네이버, OFL 무료 글꼴) -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@kfonts/maruburi@0.1.0/index.css">
+  <link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
   <div id="app">
@@ -165,6 +165,12 @@
         </div>
       </div>
       <footer class="app-footer">
+        <label class="font-pick">글꼴
+          <select id="font-choice" aria-label="문장 글꼴">
+            <option value="default">마루부리</option>
+            <option value="custom">내 폰트 (29CM Editorial)</option>
+          </select>
+        </label>
         <span id="font-status" class="font-status"></span>
         <button id="logout-btn" class="btn link small" type="button">로그아웃</button>
       </footer>
@@ -266,8 +272,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="config.js?v=19"></script>
+  <script src="config.js?v=20"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script src="app.js?v=19"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>

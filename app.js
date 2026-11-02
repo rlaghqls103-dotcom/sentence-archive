@@ -74,7 +74,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v19";
+  const APP_VERSION = "v20";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -246,14 +246,24 @@
 
   // 맨 아래에 지금 어떤 글꼴로 보이는지 표시 (제대로 적용됐는지 확인용)
   function setFontStatus(text) { const el = $("font-status"); if (el) el.textContent = text; }
-  function fontFamilyName(files) {
-    // "29CM-Editorial-400.woff2" → "29CM Editorial"
-    const n = files[0].name.replace(FONT_EXT, "").replace(/[-_ ]?(\d00|thin|hairline|extralight|ultralight|light|regular|medium|semibold|demibold|bold|extrabold|ultrabold|black|heavy|italic|oblique)$/gi, "");
-    return n.replace(/[-_]+/g, " ").trim() || "내 폰트";
+
+
+  // 문장 글꼴 고르기: 기본은 마루부리, '내 폰트'를 고르면 Supabase 보관함의 폰트를 받아 써요 (기기마다 저장)
+  const fontChoice = $("font-choice");
+  fontChoice.value = store.get("fontChoice", "default") === "custom" ? "custom" : "default";
+  function applyFontChoice() {
+    if (fontChoice.value === "custom") {
+      setFontStatus("내 폰트를 불러오는 중…");
+      loadCustomFont().catch((err) => { console.warn("내 폰트를 불러오지 못했어요", err); setFontStatus("내 폰트를 불러오지 못했어요"); });
+    } else {
+      document.documentElement.classList.remove("custom-font");
+      setFontStatus("");
+    }
   }
+  fontChoice.addEventListener("change", () => { store.set("fontChoice", fontChoice.value); applyFontChoice(); });
 
   async function loadCustomFont() {
-    if (fontsApplied) { document.documentElement.classList.add("custom-font"); return; }
+    if (fontsApplied) { document.documentElement.classList.add("custom-font"); setFontStatus(""); return; }
     let files;
     try {
       const { data, error } = await sb.storage.from("fonts").list("", { limit: 100 });
@@ -273,7 +283,7 @@
       if (!best.has(k) || rank(f.name) < rank(best.get(k).name)) best.set(k, f);
     }
     files = [...best.values()];
-    if (!files.length) { setFontStatus("글꼴: 기본 명조 · 내 폰트 파일을 찾지 못했어요"); return; }
+    if (!files.length) { setFontStatus("내 폰트 파일을 찾지 못해서 마루부리로 보여요"); return; }
 
     let cache = null;
     try { cache = await caches.open(FONT_CACHE); } catch { /* 사생활 보호 모드 등: 캐시 없이 */ }
@@ -288,12 +298,11 @@
     }));
     const faces = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
     results.filter((r) => r.status === "rejected").forEach((r) => console.warn("내 폰트를 불러오지 못했어요", r.reason));
-    if (!faces.length) { setFontStatus("글꼴: 기본 명조 · 내 폰트를 불러오지 못했어요"); return; }
+    if (!faces.length) { setFontStatus("내 폰트를 불러오지 못해서 마루부리로 보여요"); return; }
     faces.forEach((f) => document.fonts.add(f));
     fontsApplied = true;
-    const weights = [...new Set(faces.map((f) => f.weight))].sort();
-    setFontStatus(`글꼴: ${fontFamilyName(files)} · 굵기 ${weights.join("·")}` + (faces.length < files.length ? ` (${files.length - faces.length}개 실패)` : ""));
-    if (user) document.documentElement.classList.add("custom-font");
+    setFontStatus(faces.length < files.length ? `내 폰트 일부(${files.length - faces.length}개)를 불러오지 못했어요` : "");
+    if (user && fontChoice.value === "custom") document.documentElement.classList.add("custom-font");
 
     // 바뀌거나 지운 폰트의 예전 저장본 정리
     if (cache) {
@@ -315,7 +324,7 @@
 
   function enterMain() {
     show("main");
-    loadCustomFont().catch((err) => console.warn("내 폰트를 불러오지 못했어요", err));
+    applyFontChoice();
     items = store.get("cache:" + user.id, []);
     loadBookRows(store.get("colors:" + user.id, []));
     const lastBook = store.get("lastBook", "");

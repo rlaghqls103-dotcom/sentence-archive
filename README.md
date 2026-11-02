@@ -82,12 +82,15 @@
 2. **Edge Functions → Deploy a new function → Via Editor**를 열어요.
    - 이름을 `ocr`로 하고, [`supabase/functions/ocr/index.ts`](supabase/functions/ocr/index.ts) 내용을 붙여넣은 뒤 **Deploy**를 눌러요.
 
-### 5. 내 폰트 쓰기 (선택, 비공개)
+### 5. 글꼴
+문장과 제목은 기본으로 **마루부리**(네이버, OFL 무료 글꼴)로 보여요. 맨 아래 **글꼴** 선택에서 내 폰트로 바꿀 수 있어요(기기마다 따로 저장).
+
+### 6. 내 폰트 쓰기 (선택, 비공개)
 개인 사용만 허용된 폰트는 공개 GitHub에 올리면 안 되니, **Supabase 비공개 보관함**에 넣어요. 로그인한 본인만 받을 수 있어요.
 1. **SQL Editor**에서 [`supabase/schema.sql`](supabase/schema.sql)을 다시 실행해요. `fonts` 보관함과 읽기 권한이 만들어져요.
 2. **Storage → fonts → Upload file**로 폰트 파일(`.woff2` `.woff` `.otf` `.ttf`)을 올려요.
    - 굵기가 여러 개면 모두 올려요. 파일 이름의 `Regular`, `Bold` 같은 말로 굵기를 알아봐요.
-3. 앱을 다시 열면 **문장과 제목**에 적용돼요. 버튼 같은 작은 글자는 기본 고딕을 유지해요.
+3. 앱 맨 아래 **글꼴**에서 **내 폰트**를 고르면 **문장과 제목**에 적용돼요. 버튼 같은 작은 글자는 기본 고딕을 유지해요.
    - 한 번 받은 폰트는 기기에 저장돼서 다음부터는 바로 떠요.
    - 로그인 화면은 기본 폰트로 보여요.
 
@@ -103,7 +106,7 @@
 | 파일 | 역할 |
 |---|---|
 | `index.html` | 화면 |
-| `styles.css` | 종이 느낌 테마 |
+| `styles.css` | 흰 바탕 + 책 색 테마 |
 | `app.js` | 로그인, 저장, 검색, 동기화 |
 | `sw.js` | 오프라인에서도 화면을 띄우는 서비스워커 |
 | `supabase/schema.sql` | 데이터베이스 설정 |
