@@ -74,12 +74,14 @@
           <span class="today" id="today-label"></span>
           <div class="compose-tools">
             <button id="join-lines-btn" class="btn ghost small" type="button" title="사진에서 복사하면 생기는 줄바꿈을 한 줄로 합쳐요">줄 합치기</button>
+            <button id="camera-btn" class="btn soft small icon-btn" type="button" aria-label="사진 찍기" title="사진 찍어서 문장 가져오기">📷</button>
             <button id="paste-btn" class="btn soft small" type="button">붙여넣기</button>
           </div>
         </div>
+        <input id="camera-input" type="file" accept="image/*" capture="environment" hidden>
 
         <textarea id="compose-content" class="sentence-input" rows="4" required
-          placeholder="카메라로 찍은 책 페이지에서 문장을 복사해 붙여넣으세요."></textarea>
+          placeholder="📷으로 책 페이지를 찍거나, 복사한 문장을 붙여넣으세요."></textarea>
 
         <div class="compose-meta">
           <label class="field grow">
@@ -98,10 +100,11 @@
         <details class="tip">
           <summary>사진 속 문장을 가져오는 방법</summary>
           <ol>
-            <li><b>카메라 앱</b>으로 책 페이지를 비추거나 찍은 뒤, 오른쪽 아래 <b>텍스트 인식 버튼</b>을 눌러요.</li>
-            <li>원하는 문장을 길게 눌러 선택하고 <b>복사</b>해요.</li>
-            <li>이 앱으로 돌아와 <b>붙여넣기</b>를 누르면 끝이에요.</li>
+            <li><b>📷</b>을 눌러 책 페이지를 찍어요.</li>
+            <li>사진 속 글자를 <b>길게 눌러</b> 원하는 문장만 고르고 <b>복사</b>한 뒤, <b>붙여넣고 닫기</b>를 눌러요.</li>
+            <li>고르기 번거로우면 <b>자동 인식</b>을 눌러요. 사진 속 글자가 전부 들어오니 필요 없는 부분만 지우면 돼요.</li>
           </ol>
+          <p class="muted small">아이폰 <b>카메라 앱</b>의 텍스트 인식 버튼으로 문장을 복사한 뒤, 여기서 <b>붙여넣기</b>를 눌러도 돼요.</p>
           <p class="muted small">입력칸을 길게 누르면 나오는 <b>“텍스트 스캔”</b>을 고르면, 앱을 나가지 않고 카메라로 바로 문장을 넣을 수도 있어요.</p>
         </details>
       </form>
@@ -152,6 +155,26 @@
         <button id="edit-save" class="btn primary" type="submit">저장</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- 사진 보기 (라이브 텍스트로 고르기 / 자동 인식) -->
+  <dialog id="photo-dialog" class="photo-dialog" aria-label="찍은 사진">
+    <div class="photo-shell">
+      <p class="photo-hint">글자를 <b>길게 눌러</b> 원하는 문장을 고른 뒤 <b>복사</b>하세요</p>
+      <div class="photo-stage">
+        <img id="photo-img" alt="찍은 책 페이지">
+      </div>
+      <div id="ocr-progress" class="ocr-progress" hidden>
+        <div class="ocr-bar"><span id="ocr-bar-fill"></span></div>
+        <span id="ocr-label">글자를 읽는 중…</span>
+      </div>
+      <div class="photo-actions">
+        <button id="photo-close" class="btn ghost-dark" type="button">닫기</button>
+        <button id="photo-retake" class="btn ghost-dark" type="button">다시 찍기</button>
+        <button id="photo-ocr" class="btn ghost-dark" type="button">자동 인식</button>
+        <button id="photo-paste" class="btn primary" type="button">붙여넣고 닫기</button>
+      </div>
+    </div>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

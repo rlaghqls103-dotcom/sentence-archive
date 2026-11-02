@@ -460,6 +460,144 @@
     toast("문장을 담았어요");
   });
 
+  // ---------- 📷 사진에서 문장 가져오기 ----------
+  // 사진은 이 기기 화면에만 잠깐 띄우고, 어디에도 올리거나 저장하지 않아요.
+
+  const cameraInput = $("camera-input");
+  const photoDialog = $("photo-dialog");
+  const photoImg = $("photo-img");
+  const ocrBtn = $("photo-ocr");
+  let photoFile = null;
+  let photoUrl = null;
+  let ocrBusy = false;
+
+  $("camera-btn").addEventListener("click", () => cameraInput.click());
+  $("photo-retake").addEventListener("click", () => cameraInput.click());
+
+  cameraInput.addEventListener("change", () => {
+    const file = cameraInput.files && cameraInput.files[0];
+    cameraInput.value = ""; // 같은 사진을 다시 골라도 change 가 일어나도록
+    if (!file) return;
+    photoFile = file;
+    if (photoUrl) URL.revokeObjectURL(photoUrl);
+    photoUrl = URL.createObjectURL(file);
+    photoImg.src = photoUrl;
+    setOcrProgress(null);
+    if (!photoDialog.open) photoDialog.showModal();
+  });
+
+  function closePhoto() {
+    if (photoDialog.open) photoDialog.close();
+  }
+  photoDialog.addEventListener("close", () => {
+    photoImg.removeAttribute("src");
+    if (photoUrl) URL.revokeObjectURL(photoUrl);
+    photoUrl = null;
+    photoFile = null;
+    setOcrProgress(null);
+  });
+  $("photo-close").addEventListener("click", closePhoto);
+
+  $("photo-paste").addEventListener("click", async () => {
+    let text = "";
+    try { text = await navigator.clipboard.readText(); } catch { text = null; }
+    closePhoto();
+    if (text === null) {
+      content.focus();
+      toast("입력칸을 길게 눌러 ‘붙여넣기’를 선택해 주세요");
+      return;
+    }
+    if (!text.trim()) { toast("먼저 사진 속 문장을 골라 복사해 주세요"); return; }
+    insertText(text.trim());
+    content.focus();
+  });
+
+  function setOcrProgress(p, label) {
+    const box = $("ocr-progress");
+    if (p == null) { box.hidden = true; return; }
+    box.hidden = false;
+    $("ocr-bar-fill").style.width = Math.round(p * 100) + "%";
+    $("ocr-label").textContent = label || `글자를 읽는 중… ${Math.round(p * 100)}%`;
+  }
+
+  // 글자 인식 라이브러리는 [자동 인식]을 처음 누를 때만 받아요 (앱이 가볍게 열리도록)
+  const TESSERACT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js";
+  let tesseractLoading = null;
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (!tesseractLoading) {
+      tesseractLoading = new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = TESSERACT_URL;
+        s.onload = () => resolve(window.Tesseract);
+        s.onerror = () => { tesseractLoading = null; reject(new Error("load failed")); };
+        document.head.append(s);
+      });
+    }
+    return tesseractLoading;
+  }
+
+  // 큰 사진은 줄여서 인식해요 (아이폰 메모리·속도). 사진 방향(EXIF)은 브라우저가 맞춰줘요.
+  async function shrinkForOcr(file, maxSide = 2000) {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    if (bmp.close) bmp.close();
+    return canvas;
+  }
+
+  function cleanOcrText(text) {
+    return joinLines(
+      text
+        .replace(/[|¦]/g, "")                      // 줄·테두리를 글자로 잘못 읽은 것
+        .replace(/[ \t]+([.,!?…」』”’)])/g, "$1")  // 문장부호 앞의 불필요한 공백
+    );
+  }
+
+  ocrBtn.addEventListener("click", async () => {
+    if (ocrBusy || !photoFile) return;
+    ocrBusy = true;
+    ocrBtn.disabled = true;
+    const file = photoFile;
+    let worker = null;
+    try {
+      setOcrProgress(0.02, "글자 인식 도구를 준비하는 중… (처음 한 번은 조금 걸려요)");
+      const Tesseract = await loadTesseract();
+      const image = await shrinkForOcr(file);
+      worker = await Tesseract.createWorker("kor", 1, {
+        logger: (m) => {
+          if (m.status === "recognizing text") setOcrProgress(0.3 + m.progress * 0.7);
+          else if (m.status && m.status.includes("loading")) {
+            setOcrProgress(0.05 + (m.progress || 0) * 0.25, "글자 인식 도구를 준비하는 중… (처음 한 번은 조금 걸려요)");
+          }
+        },
+      });
+      const { data } = await worker.recognize(image);
+      const text = cleanOcrText(data.text || "");
+      if (photoFile !== file) return; // 그새 다시 찍었으면 무시
+      if (!text) {
+        setOcrProgress(1, "글자를 찾지 못했어요. 더 밝고 가까이 다시 찍어 보세요.");
+        return;
+      }
+      closePhoto();
+      insertText(text);
+      content.focus();
+      toast("사진 속 글자를 넣었어요. 필요 없는 부분은 지워주세요");
+    } catch (err) {
+      console.error(err);
+      setOcrProgress(1, navigator.onLine
+        ? "글자 인식에 실패했어요. 다시 시도해 주세요."
+        : "글자 인식은 인터넷 연결이 필요해요.");
+    } finally {
+      if (worker) worker.terminate();
+      ocrBusy = false;
+      ocrBtn.disabled = false;
+    }
+  });
+
   // ---------- 검색 ----------
 
   $("search").addEventListener("input", (e) => {
