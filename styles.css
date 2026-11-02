@@ -300,7 +300,8 @@ textarea { resize: vertical; }
 }
 .today { font-size: .84rem; color: var(--ink-soft); font-weight: 600; white-space: nowrap; }
 .compose-tools { display: flex; gap: 6px; margin-left: auto; }
-.icon-btn { font-size: 1rem; line-height: 1; padding: 6px 10px; }
+.icon-btn { line-height: 1; padding: 5px 10px; }
+.icon { width: 20px; height: 20px; display: block; }
 
 .sentence-input {
   font-family: var(--serif);
@@ -469,6 +470,41 @@ dialog.sheet .paper-card { padding: 18px; }
     padding-bottom: calc(env(safe-area-inset-bottom) + 18px);
   }
 }
+
+/* 책 색 고르기 */
+.color-swatches { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
+.swatch-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: var(--sw);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
+  position: relative;
+}
+.swatch-btn[aria-checked="true"] { box-shadow: 0 0 0 2px var(--paper-card), 0 0 0 4px var(--ink); }
+.swatch-btn[aria-checked="true"]::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 45%;
+  width: 6px; height: 11px;
+  border: solid var(--sw-ink);
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.swatch-btn.auto {
+  width: auto;
+  padding: 0 10px;
+  border-radius: 15px;
+  font: inherit;
+  font-size: .75rem;
+  color: var(--ink-soft);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.swatch-btn.auto[aria-checked="true"] { color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
 
 /* ---------- 사진 보기 ---------- */
 

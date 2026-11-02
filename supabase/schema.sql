@@ -77,3 +77,30 @@ drop policy if exists "fonts: signed-in can read" on storage.objects;
 create policy "fonts: signed-in can read" on storage.objects
   for select to authenticated
   using (bucket_id = 'fonts');
+
+-- ───────────────────────────────────────────────
+-- 책마다 직접 고른 색 (PC ↔ 아이폰 함께 보기). 고르지 않은 책은 앱이 자동으로 색을 정해요.
+create table if not exists public.book_colors (
+  user_id    uuid not null default auth.uid() references auth.users on delete cascade,
+  book_title text not null,
+  color      text not null check (color ~ '^#[0-9a-fA-F]{6}$'),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, book_title)
+);
+alter table public.book_colors enable row level security;
+
+drop policy if exists "own book colors" on public.book_colors;
+create policy "own book colors" on public.book_colors
+  for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'book_colors'
+  ) then
+    alter publication supabase_realtime add table public.book_colors;
+  end if;
+end $$;

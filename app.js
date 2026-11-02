@@ -63,7 +63,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v12";
+  const APP_VERSION = "v13";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -294,6 +294,7 @@
     show("main");
     loadCustomFont().catch((err) => console.warn("내 폰트를 불러오지 못했어요", err));
     items = store.get("cache:" + user.id, []);
+    bookCustom = toColorMap(store.get("colors:" + user.id, []));
     const lastBook = store.get("lastBook", "");
     if (lastBook && !$("compose-book").value) $("compose-book").value = lastBook;
     paintBook($("compose-book-swatch"), $("compose-book").value);
@@ -327,6 +328,12 @@
     }
     items = all;
     store.set("cache:" + user.id, items);
+    // 직접 고른 책 색 (표가 아직 없으면 조용히 넘어가요)
+    const { data: colors, error: colorError } = await sb.from("book_colors").select("book_title,color");
+    if (!colorError && colors) {
+      bookCustom = toColorMap(colors);
+      store.set("colors:" + user.id, [...bookCustom].map(([book_title, color]) => ({ book_title, color })));
+    }
     render();
     setSync(channel && channel.state === "joined" ? "live" : "idle");
   }
@@ -355,6 +362,16 @@
         }
         render();
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "book_colors" }, (payload) => {
+        if (payload.eventType === "DELETE") {
+          if (payload.old && payload.old.book_title) bookCustom.delete(payload.old.book_title);
+        } else if (payload.new && payload.new.user_id === user.id && HEX.test(payload.new.color || "")) {
+          bookCustom.set(payload.new.book_title, payload.new.color);
+        }
+        store.set("colors:" + user.id, [...bookCustom].map(([book_title, color]) => ({ book_title, color })));
+        render();
+        if (dialog.open) renderSwatches();
+      })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") setSync("live");
         else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setSync("offline");
@@ -374,12 +391,32 @@
 
   // ---------- 책마다 고유한 색 ----------
   // 책 제목으로 색을 정해서, 어느 기기에서 보든 같은 책은 늘 같은 색이에요.
-  // [배경색, 글자색] — 밝은 색 위에는 먹색 글자, 진한 색 위에는 흰 글자
+  // 고전 전집 표지에서 흔히 보이는 색감으로 고른 팔레트 [색, 이름]
+  // (색을 바꾸고 싶으면 여기만 고치면 돼요. 글자색은 자동으로 정해져요)
   const BOOK_COLORS = [
-    ["#d63e26", "#ffffff"], ["#2c5aa8", "#ffffff"], ["#f2b530", "#1b1b1b"], ["#2f8a5f", "#ffffff"],
-    ["#7d4e9e", "#ffffff"], ["#17808e", "#ffffff"], ["#ee8aa0", "#1b1b1b"], ["#c0632a", "#ffffff"],
-    ["#253b66", "#ffffff"], ["#9aa23a", "#1b1b1b"], ["#c2397a", "#ffffff"], ["#6fb3e0", "#1b1b1b"],
+    ["#d63e26", "주홍"], ["#2c5aa8", "코발트"], ["#f2b530", "겨자"], ["#2f8a5f", "초록"],
+    ["#7d4e9e", "보라"], ["#17808e", "청록"], ["#ee8aa0", "분홍"], ["#c0632a", "적갈"],
+    ["#253b66", "남색"], ["#9aa23a", "올리브"], ["#c2397a", "자홍"], ["#6fb3e0", "하늘"],
+    ["#f0803c", "주황"], ["#8fb39a", "세이지"], ["#e6d6b3", "모래"], ["#2b2b2b", "먹색"],
   ];
+  // 배경색에 맞춰 더 잘 읽히는 글자색(흰색/먹색)을 골라요
+  function inkFor(hex) {
+    const lum = (h) => {
+      const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const L = lum(hex);
+    const vsWhite = 1.05 / (L + 0.05), vsInk = (L + 0.05) / (lum("#1b1b1b") + 0.05);
+    return vsWhite >= vsInk ? "#ffffff" : "#1b1b1b";
+  }
+  let bookCustom = new Map(); // 책 제목 → 직접 고른 색 (Supabase book_colors)
+  const HEX = /^#[0-9a-f]{6}$/i;
+  // 저장된 책 색 목록을 Map 으로 (형식이 맞지 않는 값은 건너뛰어요)
+  const toColorMap = (rows) => new Map((rows || [])
+    .filter((c) => c && typeof c.book_title === "string" && HEX.test(c.color || ""))
+    .map((c) => [c.book_title, c.color]));
+
   // 책이 12권 이하일 때는 서로 다른 색이 되도록 배정해요.
   // 오래전에 처음 담은 책부터 순서대로, 제목으로 정한 색이 이미 쓰였으면 다음 색으로 넘어가요.
   // (책을 새로 추가해도 기존 책 색은 바뀌지 않아요)
@@ -397,10 +434,15 @@
   }
   function assignBookColors() {
     const map = new Map(), used = new Set();
+    // 직접 고른 색은 먼저 자리를 차지해요 (자동 배정이 같은 색을 피하도록)
+    for (const hex of bookCustom.values()) {
+      const i = BOOK_COLORS.findIndex(([c]) => c.toLowerCase() === hex.toLowerCase());
+      if (i >= 0) used.add(i);
+    }
     // items 는 최신순이라 거꾸로(오래된 것부터) 훑어요
     for (let k = items.length - 1; k >= 0; k--) {
       const t = (items[k].book_title || "").trim();
-      if (!t || map.has(t)) continue;
+      if (!t || map.has(t) || bookCustom.has(t)) continue;
       const i = freeIndex(t, used);
       used.add(i);
       map.set(t, i);
@@ -410,9 +452,10 @@
   function bookColor(title) {
     const t = (title || "").trim();
     if (!t) return null;
+    if (bookCustom.has(t)) { const bg = bookCustom.get(t); return { bg, ink: inkFor(bg) }; }
     const i = bookColorMap.has(t) ? bookColorMap.get(t) : freeIndex(t, new Set(bookColorMap.values()));
-    const [bg, ink] = BOOK_COLORS[i];
-    return { bg, ink };
+    const bg = BOOK_COLORS[i][0];
+    return { bg, ink: inkFor(bg) };
   }
   function paintBook(el, title) {
     const c = bookColor(title);
@@ -938,7 +981,54 @@
     $("edit-page").value = it.page || "";
     $("edit-memo").value = it.memo || "";
     $("edit-date").textContent = fmtLongDate(new Date(it.created_at)) + "에 담음";
+    renderSwatches();
     dialog.showModal();
+  }
+
+  // ---------- 책 색 고르기 ----------
+  // 수정 창에서 고르면 같은 책의 모든 문장에 바로 적용되고, PC·아이폰에 함께 저장돼요.
+  function renderSwatches() {
+    const title = $("edit-book").value.trim();
+    $("edit-color").hidden = !title;
+    if (!title) return;
+    const current = bookCustom.get(title) || null;
+    const box = $("color-swatches");
+    const mk = (hex, name) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = hex ? "swatch-btn" : "swatch-btn auto";
+      b.setAttribute("role", "radio");
+      b.setAttribute("aria-checked", String((current || null) === hex));
+      b.setAttribute("aria-label", name);
+      b.title = name;
+      if (hex) { b.style.setProperty("--sw", hex); b.style.setProperty("--sw-ink", inkFor(hex)); }
+      else b.textContent = "자동";
+      b.addEventListener("click", () => setBookColor(title, hex));
+      return b;
+    };
+    box.replaceChildren(mk(null, "자동으로 정하기"), ...BOOK_COLORS.map(([hex, name]) => mk(hex, name)));
+  }
+  $("edit-book").addEventListener("input", renderSwatches);
+
+  async function setBookColor(title, hex) {
+    const prev = bookCustom.get(title) || null;
+    if (prev === hex) return;
+    const apply = (v) => {
+      if (v) bookCustom.set(title, v); else bookCustom.delete(title);
+      store.set("colors:" + user.id, [...bookCustom].map(([book_title, color]) => ({ book_title, color })));
+      render();
+      renderSwatches();
+    };
+    apply(hex); // 먼저 화면에 바로 보여주고
+    const { error } = hex
+      ? await sb.from("book_colors").upsert({ user_id: user.id, book_title: title, color: hex }, { onConflict: "user_id,book_title" })
+      : await sb.from("book_colors").delete().eq("book_title", title);
+    if (error) {
+      apply(prev); // 저장에 실패하면 되돌려요
+      toast(/book_colors|schema cache|does not exist/i.test(error.message || "")
+        ? "책 색 표가 아직 없어요. (Supabase에서 schema.sql 실행 필요)"
+        : "색을 저장하지 못했어요. 인터넷 연결을 확인해 주세요.");
+    }
   }
 
   $("edit-cancel").addEventListener("click", () => dialog.close());
