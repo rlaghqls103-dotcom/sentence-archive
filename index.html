@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
   <div id="app">
@@ -103,7 +103,7 @@
           <ol>
             <li><b>📷</b>을 눌러 책 페이지를 찍어요.</li>
             <li>사진 속 글자를 <b>길게 눌러</b> 원하는 문장만 고르고 <b>복사</b>한 뒤, <b>붙여넣고 닫기</b>를 눌러요.</li>
-            <li>또는 <b>✂︎ 골라서 인식</b>을 누르고, 원하는 문장을 손가락으로 쓸어 상자로 감싼 뒤 <b>이 부분 읽기</b>를 눌러요.</li>
+            <li>또는 <b>✂︎ 골라서 인식</b>을 누르고, 원하는 문장을 손가락으로 쓸어 상자로 감싼 뒤 <b>이 부분 읽기</b>를 눌러요. 고른 부분 사진만 구글 Cloud Vision으로 보내 읽어요.</li>
           </ol>
           <p class="muted small">아이폰 <b>카메라 앱</b>의 텍스트 인식 버튼으로 문장을 복사한 뒤, 여기서 <b>붙여넣기</b>를 눌러도 돼요.</p>
           <p class="muted small">입력칸을 길게 누르면 나오는 <b>“텍스트 스캔”</b>을 고르면, 앱을 나가지 않고 카메라로 바로 문장을 넣을 수도 있어요.</p>
@@ -162,7 +162,7 @@
   <dialog id="photo-dialog" class="photo-dialog" aria-label="찍은 사진">
     <div id="photo-shell" class="photo-shell" data-mode="view">
       <p class="photo-hint mode-view">글자를 <b>길게 눌러</b> 원하는 문장을 고른 뒤 <b>복사</b>하세요</p>
-      <p class="photo-hint mode-crop">읽을 문장을 손가락으로 <b>쓸어서 상자로 감싸세요</b></p>
+      <p class="photo-hint mode-crop">읽을 문장을 손가락으로 <b>쓸어서 상자로 감싸세요</b><br><span class="photo-sub">고른 부분 사진만 구글로 보내 읽어요</span></p>
       <div id="photo-stage" class="photo-stage">
         <div id="photo-frame" class="photo-frame">
           <img id="photo-img" alt="찍은 책 페이지">
@@ -195,8 +195,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="config.js?v=7"></script>
+  <script src="config.js?v=8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

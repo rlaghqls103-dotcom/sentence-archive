@@ -63,7 +63,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v7";
+  const APP_VERSION = "v8";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -541,8 +541,6 @@
     photoUrl = null;
     photoFile = null;
     setMode("view");
-    pageOcr = null;
-    releaseOcrWorker();
   });
   $("photo-close").addEventListener("click", closePhoto);
 
@@ -560,24 +558,20 @@
     content.focus();
   });
 
+  // p: 0~1 진행률, "busy"는 진행률을 모를 때(움직이는 막대), null 은 숨기기
   function setOcrProgress(p, label) {
     const box = $("ocr-progress");
     if (p == null) { box.hidden = true; return; }
     box.hidden = false;
-    $("ocr-bar-fill").style.width = Math.round(p * 100) + "%";
-    $("ocr-label").textContent = label || `글자를 읽는 중… ${Math.round(p * 100)}%`;
+    const busy = p === "busy";
+    box.querySelector(".ocr-bar").classList.toggle("indeterminate", busy);
+    $("ocr-bar-fill").style.width = busy ? "" : Math.round(p * 100) + "%";
+    $("ocr-label").textContent = label || "";
   }
 
   // ---------- ✂︎ 범위 선택 ----------
 
-  $("photo-ocr").addEventListener("click", () => {
-    setMode("crop");
-    // 상자를 그리는 동안 사진 전체를 미리 읽어둬요 → [이 부분 읽기]를 누르면 바로 결과가 나와요
-    if (!(pageOcr && pageOcr.file === photoFile && pageOcr.done)) setOcrProgress(0.05, PREPARING);
-    startPageOcr(photoFile)
-      .then(() => { if (photoShell.dataset.mode === "crop" && !ocrBusy) setOcrProgress(1, "글자를 다 읽었어요. 상자를 그리고 [이 부분 읽기]를 누르세요."); })
-      .catch(() => { if (photoShell.dataset.mode === "crop" && !ocrBusy) setOcrProgress(1, "글자 인식을 준비하지 못했어요. 인터넷 연결을 확인해 주세요."); });
-  });
+  $("photo-ocr").addEventListener("click", () => setMode("crop"));
   $("crop-cancel").addEventListener("click", () => setMode("view"));
 
   function setCropBox(box) {
@@ -654,114 +648,67 @@
   cropLayer.addEventListener("pointerup", endDrag);
   cropLayer.addEventListener("pointercancel", endDrag);
 
-  // ---------- 글자 인식 ----------
+  // ---------- 글자 인식 (구글 Cloud Vision) ----------
+  // 고른 부분과 주변 여백만 잘라서 Supabase 중간 서버("ocr" 함수)로 보내고,
+  // 중간 서버가 비밀 키로 구글 Cloud Vision 에 읽기를 맡겨요. 키는 앱 코드에 없어요.
 
-  // 글자 인식 라이브러리는 [골라서 인식]을 처음 누를 때만 받아요 (앱이 가볍게 열리도록)
-  const TESSERACT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js";
-  let tesseractLoading = null;
-  function loadTesseract() {
-    if (window.Tesseract) return Promise.resolve(window.Tesseract);
-    if (!tesseractLoading) {
-      tesseractLoading = new Promise((resolve, reject) => {
-        const s = document.createElement("script");
-        s.src = TESSERACT_URL;
-        s.onload = () => resolve(window.Tesseract);
-        s.onerror = () => { tesseractLoading = null; s.remove(); reject(new Error("load failed")); };
-        document.head.append(s);
-      });
-    }
-    return tesseractLoading;
-  }
-
-  // 사진 창이 열려 있는 동안은 인식 도구를 다시 써서, 두 번째부터는 바로 읽어요
-  let ocrWorkerPromise = null;
-  function getOcrWorker() {
-    if (!ocrWorkerPromise) {
-      ocrWorkerPromise = (async () => {
-        const Tesseract = await loadTesseract();
-        return Tesseract.createWorker("kor", 1, {
-          logger: (m) => { if (photoShell.dataset.mode === "crop" || ocrBusy) ocrProgress(m); },
-        });
-      })();
-      ocrWorkerPromise.catch(() => { ocrWorkerPromise = null; });
-    }
-    return ocrWorkerPromise;
-  }
-  function releaseOcrWorker() {
-    const p = ocrWorkerPromise;
-    ocrWorkerPromise = null;
-    if (p) p.then((w) => w.terminate()).catch(() => {});
-  }
-
-  // 사진 전체를 한 번 읽어 글자마다 위치를 받아두고, 상자 안에 들어온 단어만 골라내요.
-  // (잘라서 읽으면 기울어진 사진에서 반쯤 잘린 줄 때문에 오히려 인식이 나빠져요)
-  let pageOcr = null; // { file, promise, done }
-
-  async function photoToCanvas(file) {
+  // 상자에 여백을 붙여 원본 사진에서 잘라요. 가장자리 단어도 문맥 있게 읽히도록.
+  async function cropForCloud(file, box) {
     const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
-    // 큰 사진은 긴 변 2400px로 줄여요 (아이폰 메모리·속도). 작은 사진은 그대로 읽는 게 더 정확했어요.
-    const long = Math.max(bmp.width, bmp.height);
-    const scale = long > 2400 ? 2400 / long : 1;
+    const mx = box.w * 0.06;
+    const my = Math.max(box.h * 0.25, 0.02);
+    const crop = {
+      x: Math.max(0, box.x - mx),
+      y: Math.max(0, box.y - my),
+    };
+    crop.w = Math.min(1, box.x + box.w + mx) - crop.x;
+    crop.h = Math.min(1, box.y + box.h + my) - crop.y;
+    const sx = crop.x * bmp.width, sy = crop.y * bmp.height;
+    const sw = crop.w * bmp.width, sh = crop.h * bmp.height;
+    const scale = Math.min(1, 2000 / Math.max(sw, sh)); // 긴 변 최대 2000px
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bmp.width * scale);
-    canvas.height = Math.round(bmp.height * scale);
+    canvas.width = Math.max(1, Math.round(sw * scale));
+    canvas.height = Math.max(1, Math.round(sh * scale));
     const ctx = canvas.getContext("2d");
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bmp, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
     if (bmp.close) bmp.close();
-    return canvas;
+    const image = canvas.toDataURL("image/jpeg", 0.9).split(",")[1];
+    return { image, crop, cw: canvas.width, ch: canvas.height };
   }
 
-  function startPageOcr(file) {
-    if (pageOcr && pageOcr.file === file) return pageOcr.promise;
-    const job = { file, done: false };
-    job.promise = (async () => {
-      const workerPromise = getOcrWorker();
-      const [worker, canvas] = await Promise.all([workerPromise, photoToCanvas(file)]);
-      // 준비하는 사이 창을 닫았거나 다른 사진을 골랐으면 멈춰요 (이미 정리된 인식 도구를 쓰지 않도록)
-      if (pageOcr !== job || ocrWorkerPromise !== workerPromise) throw new Error("cancelled");
-      const { data } = await worker.recognize(canvas, {}, { blocks: true, text: false });
-      const W = canvas.width, H = canvas.height;
-      const lines = [];
-      for (const blk of data.blocks || []) for (const para of blk.paragraphs || []) for (const line of para.lines || []) {
-        // 위치는 사진 기준 비율(0~1)로, 간격 계산용으로 픽셀 값도 함께 보관
-        const words = line.words
-          .filter((w) => w.text && w.text.trim())
-          .map((w) => ({
-            text: w.text.trim(),
-            px0: w.bbox.x0, px1: w.bbox.x1, ph: w.bbox.y1 - w.bbox.y0,
-            cx: (w.bbox.x0 + w.bbox.x1) / 2 / W,
-            cy: (w.bbox.y0 + w.bbox.y1) / 2 / H,
-          }));
-        if (words.length) lines.push({ words, cy: words.reduce((a, w) => a + w.cy, 0) / words.length });
-      }
-      job.done = true;
-      return lines;
-    })();
-    job.promise.catch(() => { if (pageOcr === job) pageOcr = null; });
-    pageOcr = job;
-    return job.promise;
+  // 중간 서버가 돌려준 줄·단어(잘라낸 사진의 픽셀 좌표)를 사진 전체 기준 비율 좌표로 바꿔요
+  function toPhotoLines(lines, crop, cw, ch) {
+    return lines.map((ws) => {
+      const words = ws.map((w) => ({
+        text: w.t,
+        sp: w.sp,
+        cx: crop.x + ((w.x0 + w.x1) / 2 / cw) * crop.w,
+        cy: crop.y + ((w.y0 + w.y1) / 2 / ch) * crop.h,
+      }));
+      return { words, cy: words.reduce((a, w) => a + w.cy, 0) / words.length };
+    });
   }
 
-  // 상자 안에 중심이 들어온 단어만 모아요. 띄어쓰기는 단어 사이 실제 간격으로 정해요.
-  // 기울어진 사진에서는 위아래 줄 끝 몇 단어가 상자 모서리에 걸리는데,
+  // 상자 안에 중심이 들어온 단어만 모아요. 띄어쓰기는 구글이 알려준 대로.
+  // 기울어진 사진에서 위아래 줄 끝 몇 단어가 상자 모서리에 걸리는데,
   // 줄 전체의 중심이 상자 밖이면 그 줄은 빼요.
+  // 줄이 바뀌는 곳: 줄 끝 단어에 띄어쓰기 표시가 없으면(단어 중간에서 줄이 바뀐 것) 붙여 써요.
   function wordsInBox(lines, box) {
-    const out = [];
     const inY = (y) => y >= box.y && y <= box.y + box.h;
     const inX = (x) => x >= box.x && x <= box.x + box.w;
+    let text = "";
     for (const line of lines) {
       if (!inY(line.cy)) continue;
       const ws = line.words.filter((w) => inX(w.cx) && inY(w.cy));
       if (!ws.length) continue;
-      ws.sort((a, b) => a.px0 - b.px0);
-      const hs = ws.map((w) => w.ph).sort((a, b) => a - b);
-      const h = hs[hs.length >> 1];
-      let t = ws[0].text;
-      for (let i = 1; i < ws.length; i++) t += (ws[i].px0 - ws[i - 1].px1 > h * 0.3 ? " " : "") + ws[i].text;
-      out.push(t);
+      ws.forEach((w, i) => {
+        const last = i === ws.length - 1;
+        const cutByBox = last && w !== line.words[line.words.length - 1];
+        text += w.text + (w.sp || cutByBox ? " " : "");
+      });
     }
-    return out.join("\n");
+    return text.trim();
   }
 
   function cleanOcrText(text) {
@@ -772,10 +719,18 @@
     );
   }
 
-  const PREPARING = "글자 인식 도구를 준비하는 중… (처음 한 번은 조금 걸려요)";
-  function ocrProgress(m) {
-    if (m.status === "recognizing text") setOcrProgress(0.3 + m.progress * 0.7, `사진 속 글자를 읽는 중… ${Math.round(m.progress * 100)}%`);
-    else if (m.status && m.status.includes("load")) setOcrProgress(0.05 + (m.progress || 0) * 0.25, PREPARING);
+  // 중간 서버 오류를 알기 쉬운 말로
+  async function cloudErrorText(error) {
+    if (!navigator.onLine) return "글자 인식은 인터넷 연결이 필요해요.";
+    const res = error && error.context;
+    let body = null;
+    if (res && typeof res.json === "function") { try { body = await res.clone().json(); } catch { /* 무시 */ } }
+    const status = res && res.status;
+    if (status === 404) return "아직 구글 인식이 연결되지 않았어요. (Supabase에 ocr 함수 배포 필요)";
+    if (status === 401) return "로그인이 풀렸어요. 다시 로그인해 주세요.";
+    if (body && body.error === "no_key") return "구글 API 키가 아직 설정되지 않았어요. (Supabase Secrets 확인)";
+    if (body && body.message) return "글자 인식에 실패했어요: " + body.message;
+    return "글자 인식에 실패했어요. 잠시 후 다시 시도해 주세요.";
   }
 
   cropReadBtn.addEventListener("click", async () => {
@@ -785,10 +740,12 @@
     const file = photoFile;
     const box = { ...cropBox };
     try {
-      if (!(pageOcr && pageOcr.file === file && pageOcr.done)) setOcrProgress(0.05, PREPARING);
-      const lines = await startPageOcr(file);
+      setOcrProgress("busy", "구글로 글자를 읽는 중…");
+      const { image, crop, cw, ch } = await cropForCloud(file, box);
+      const { data, error } = await sb.functions.invoke("ocr", { body: { image } });
       if (photoFile !== file) return; // 그새 다시 찍었거나 창을 닫았으면 무시
-      const text = cleanOcrText(wordsInBox(lines, box));
+      if (error) { setOcrProgress(1, await cloudErrorText(error)); return; }
+      const text = cleanOcrText(wordsInBox(toPhotoLines(data.lines || [], crop, cw, ch), box));
       if (!text) {
         setOcrProgress(1, "상자 안에서 글자를 찾지 못했어요. 상자를 조금 넓혀 보세요.");
         return;
@@ -799,9 +756,7 @@
       toast("골라낸 문장을 넣었어요. 틀린 글자는 고쳐주세요");
     } catch (err) {
       console.error(err);
-      setOcrProgress(1, navigator.onLine
-        ? "글자 인식에 실패했어요. 다시 시도해 주세요."
-        : "처음 한 번은 인식 도구를 받아야 해서 인터넷 연결이 필요해요.");
+      if (photoFile === file) setOcrProgress(1, await cloudErrorText(null));
     } finally {
       ocrBusy = false;
       cropReadBtn.disabled = !cropBox;
