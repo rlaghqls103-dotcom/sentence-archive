@@ -61,16 +61,30 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-.visually-hidden {
-  position: absolute !important;
-  width: 1px; height: 1px;
-  margin: -1px; padding: 0; border: 0;
+.file-btn {
+  position: relative;
   overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-user-select: none;
+  user-select: none;
 }
-label.btn { display: inline-flex; align-items: center; justify-content: center; -webkit-user-select: none; user-select: none; }
+/* 버튼 전체를 덮는 투명한 사진 선택칸: 누르면 기기가 바로 카메라를 열어요 */
+.file-btn input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  font-size: 100px; /* 일부 브라우저에서 내부 버튼이 영역 전체를 덮도록 */
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.file-btn:focus-within { box-shadow: 0 0 0 3px var(--accent-wash); }
+.app-version { font-size: .7rem; color: var(--ink-faint); letter-spacing: .02em; }
 
 html { -webkit-text-size-adjust: 100%; }
 

@@ -62,9 +62,27 @@
     for (const key of Object.keys(views)) views[key].hidden = key !== name;
   }
 
+  // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
+  const APP_VERSION = "v6";
+  $("app-version").textContent = APP_VERSION;
+
+  // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
   if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("sw.js").catch(() => {});
+    window.addEventListener("load", async () => {
+      try {
+        const hadController = !!navigator.serviceWorker.controller;
+        const reg = await navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
+        let reloaded = false;
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          // 처음 설치될 때는 새로고침하지 않고, 이미 쓰던 앱이 새 버전으로 바뀔 때만
+          if (!hadController || reloaded) return;
+          reloaded = true;
+          location.reload();
+        });
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") reg.update().catch(() => {});
+        });
+      } catch { /* 서비스워커 없이도 앱은 동작해요 */ }
     });
   }
 
@@ -471,17 +489,8 @@
   let photoUrl = null;
   let ocrBusy = false;
 
-  // 📷·다시 찍기는 <label for> 로 연결돼 있어서, 누르면 기기가 직접 카메라를 열어요.
-  // (아이폰 홈 화면 앱은 스크립트로 여는 input.click() 을 막을 때가 있어요)
-  // 키보드(Enter/Space)로 눌렀을 때만 스크립트로 열어줘요.
-  for (const label of [$("camera-btn"), $("photo-retake")]) {
-    label.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        $(label.htmlFor).click();
-      }
-    });
-  }
+  // 📷·다시 찍기 버튼 위에는 투명한 사진 선택칸이 겹쳐 있어서, 누르면 기기가 직접 카메라를 열어요.
+  // (아이폰 홈 화면 앱은 스크립트나 label 로 여는 방식을 막을 때가 있어요)
 
   function onPhotoPicked(e) {
     const input = e.target;
