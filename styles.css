@@ -674,6 +674,79 @@ dialog.fullview::backdrop { background: transparent; }
 }
 #view-memo { margin-top: 22px; font-size: .95rem; }
 
+.full-scroll { touch-action: pan-y; outline: none; }
+dialog.fullview { outline: none; }
+/* 띠를 누르면 책 페이지로 */
+#view-band.tappable { cursor: pointer; }
+#view-band.tappable .sentence-book::after { content: " ›"; font-weight: 400; opacity: .8; }
+#view-band.tappable:active { filter: brightness(.95); }
+.view-nav { display: flex; align-items: center; gap: 2px; }
+.nav-btn {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.nav-btn:hover:not(:disabled) { background: var(--paper-sunk); }
+.nav-btn:disabled { color: var(--line); cursor: default; }
+.nav-btn .icon { width: 22px; height: 22px; }
+.view-pos { min-width: 4.2em; text-align: center; font-size: .82rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+/* ---------- 책 페이지 ---------- */
+.book-cover {
+  padding: 34px 22px 26px;
+  border-radius: 12px;
+  background: var(--book, var(--paper-sunk));
+  color: var(--book-ink, var(--ink));
+  text-shadow: var(--book-shadow, none);
+}
+.book-cover-title { margin: 0; font-family: var(--serif); font-size: 1.55rem; font-weight: 700; line-height: 1.35; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+.book-cover-author { margin: 6px 0 0; font-family: var(--serif); font-size: 1.05rem; opacity: .92; }
+.book-cover-meta { margin: 18px 0 0; font-size: .82rem; opacity: .85; font-variant-numeric: tabular-nums; }
+.book-note {
+  margin: 16px 0 6px;
+  padding: 14px 14px 12px;
+  border-left: 3px solid var(--book, var(--line));
+  border-radius: 0 10px 10px 0;
+  background: var(--paper-sunk);
+}
+.book-note-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.book-note-label { font-size: .8rem; font-weight: 600; color: var(--ink-soft); letter-spacing: .02em; }
+.book-note-date { font-size: .78rem; color: var(--ink-faint); }
+.book-note-text {
+  margin: 8px 0 10px;
+  font-family: var(--serif);
+  font-size: 1rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.book-note.empty-note .book-note-head { margin-bottom: 8px; }
+.book-items { list-style: none; margin: 8px 0 0; padding: 0; }
+.book-item { padding: 18px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.book-item:last-child { border-bottom: 0; }
+.book-item:active { background: var(--paper-sunk); }
+.book-item-head { font-size: .78rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; margin-bottom: 6px; }
+.book-item-text {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.0625rem;
+  line-height: 1.9;
+  letter-spacing: -0.01em;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- 아래 탭바 ---------- */
 :root.has-tabbar { --tabbar-h: 56px; }
 .tabbar {
