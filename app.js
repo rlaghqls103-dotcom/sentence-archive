@@ -63,7 +63,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v11";
+  const APP_VERSION = "v12";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -296,6 +296,7 @@
     items = store.get("cache:" + user.id, []);
     const lastBook = store.get("lastBook", "");
     if (lastBook && !$("compose-book").value) $("compose-book").value = lastBook;
+    paintBook($("compose-book-swatch"), $("compose-book").value);
     const draft = store.get("draft", "");
     if (draft && !$("compose-content").value) $("compose-content").value = draft;
     render();
@@ -371,6 +372,54 @@
 
   // ---------- 그리기 ----------
 
+  // ---------- 책마다 고유한 색 ----------
+  // 책 제목으로 색을 정해서, 어느 기기에서 보든 같은 책은 늘 같은 색이에요.
+  // [배경색, 글자색] — 밝은 색 위에는 먹색 글자, 진한 색 위에는 흰 글자
+  const BOOK_COLORS = [
+    ["#d63e26", "#ffffff"], ["#2c5aa8", "#ffffff"], ["#f2b530", "#1b1b1b"], ["#2f8a5f", "#ffffff"],
+    ["#7d4e9e", "#ffffff"], ["#17808e", "#ffffff"], ["#ee8aa0", "#1b1b1b"], ["#c0632a", "#ffffff"],
+    ["#253b66", "#ffffff"], ["#9aa23a", "#1b1b1b"], ["#c2397a", "#ffffff"], ["#6fb3e0", "#1b1b1b"],
+  ];
+  // 책이 12권 이하일 때는 서로 다른 색이 되도록 배정해요.
+  // 오래전에 처음 담은 책부터 순서대로, 제목으로 정한 색이 이미 쓰였으면 다음 색으로 넘어가요.
+  // (책을 새로 추가해도 기존 책 색은 바뀌지 않아요)
+  let bookColorMap = new Map();
+  function hashIndex(t) {
+    let h = 2166136261; // FNV-1a
+    for (const ch of t) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); }
+    return (h >>> 0) % BOOK_COLORS.length;
+  }
+  function freeIndex(t, used) {
+    let i = hashIndex(t);
+    if (used.size >= BOOK_COLORS.length) return i; // 12권을 넘으면 색을 다시 써요
+    while (used.has(i)) i = (i + 1) % BOOK_COLORS.length;
+    return i;
+  }
+  function assignBookColors() {
+    const map = new Map(), used = new Set();
+    // items 는 최신순이라 거꾸로(오래된 것부터) 훑어요
+    for (let k = items.length - 1; k >= 0; k--) {
+      const t = (items[k].book_title || "").trim();
+      if (!t || map.has(t)) continue;
+      const i = freeIndex(t, used);
+      used.add(i);
+      map.set(t, i);
+    }
+    bookColorMap = map;
+  }
+  function bookColor(title) {
+    const t = (title || "").trim();
+    if (!t) return null;
+    const i = bookColorMap.has(t) ? bookColorMap.get(t) : freeIndex(t, new Set(bookColorMap.values()));
+    const [bg, ink] = BOOK_COLORS[i];
+    return { bg, ink };
+  }
+  function paintBook(el, title) {
+    const c = bookColor(title);
+    if (c) { el.style.setProperty("--book", c.bg); el.style.setProperty("--book-ink", c.ink); }
+    else { el.style.removeProperty("--book"); el.style.removeProperty("--book-ink"); }
+  }
+
   function bookStats() {
     const map = new Map(); // 최근에 쓴 책이 먼저
     for (const it of items) {
@@ -398,6 +447,8 @@
   }
 
   function render() {
+    assignBookColors();
+    updateSwatch();
     const books = bookStats();
     if (bookFilter && !books.some(([t]) => t === bookFilter)) bookFilter = null;
 
@@ -415,7 +466,8 @@
     const mkChip = (label, value, n) => {
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "chip";
+      b.className = value ? "chip book" : "chip";
+      if (value) paintBook(b, value);
       b.setAttribute("role", "tab");
       b.setAttribute("aria-selected", String(bookFilter === value));
       b.textContent = label;
@@ -449,21 +501,11 @@
     li.className = "sentence";
     li.tabIndex = 0;
     li.dataset.id = it.id;
+    paintBook(li, it.book_title);
 
-    const p = document.createElement("p");
-    p.className = "sentence-text";
-    highlight(p, it.content, q);
-    li.append(p);
-
-    if (it.memo) {
-      const m = document.createElement("p");
-      m.className = "sentence-memo";
-      highlight(m, it.memo, q);
-      li.append(m);
-    }
-
-    const meta = document.createElement("div");
-    meta.className = "sentence-meta";
+    // 표지처럼 책 색으로 칠한 띠: 『책 제목』 · p.12 ……… 날짜
+    const band = document.createElement("div");
+    band.className = "sentence-band";
     const book = document.createElement("span");
     book.className = "sentence-book";
     if (it.book_title) {
@@ -476,9 +518,22 @@
     date.className = "sentence-date";
     date.dateTime = it.created_at;
     date.textContent = fmtDate(it.created_at);
-    meta.append(book, date);
-    li.append(meta);
+    band.append(book, date);
 
+    const body = document.createElement("div");
+    body.className = "sentence-body";
+    const p = document.createElement("p");
+    p.className = "sentence-text";
+    highlight(p, it.content, q);
+    body.append(p);
+    if (it.memo) {
+      const m = document.createElement("p");
+      m.className = "sentence-memo";
+      highlight(m, it.memo, q);
+      body.append(m);
+    }
+
+    li.append(band, body);
     li.addEventListener("click", () => openEdit(it.id));
     li.addEventListener("keydown", (e) => { if (e.key === "Enter") openEdit(it.id); });
     return li;
@@ -489,6 +544,10 @@
   const content = $("compose-content");
   const bookInput = $("compose-book");
   const pageInput = $("compose-page");
+  // 책 제목 칸 옆 점: 적는 대로 그 책의 색을 보여줘요
+  function updateSwatch() { paintBook($("compose-book-swatch"), $("compose-book").value); }
+  bookInput.addEventListener("input", updateSwatch);
+  setTimeout(updateSwatch, 0);
 
   function updateToday() {
     const d = new Date();

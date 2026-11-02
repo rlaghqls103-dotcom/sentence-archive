@@ -11,8 +11,8 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="문장창고">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="theme-color" content="#f4eee2" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#1b1916" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=11">
+  <link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
   <div id="app">
@@ -36,8 +36,8 @@
     <!-- 로그인 -->
     <section id="view-auth" class="view center-view" hidden>
       <form id="auth-form" class="paper-card narrow" autocomplete="on">
-        <div class="brand-mark" aria-hidden="true">“</div>
         <h1 class="brand">문장 수집창고</h1>
+        <div class="shelf" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
         <p class="muted small">책 속에서 만난 문장을 모아두는 나만의 창고</p>
 
         <label class="field">
@@ -60,6 +60,7 @@
       <header class="app-header">
         <div>
           <h1 class="brand small-brand">문장 수집창고</h1>
+          <div class="shelf" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
           <p id="count-line" class="muted small"></p>
         </div>
         <div class="header-actions">
@@ -86,7 +87,7 @@
 
         <div class="compose-meta">
           <label class="field grow">
-            <span>책 제목</span>
+            <span>책 제목<i id="compose-book-swatch" class="swatch" aria-hidden="true"></i></span>
             <input id="compose-book" type="text" list="book-list" autocomplete="off" enterkeyhint="next" placeholder="예) 데미안">
           </label>
           <label class="field page-field">
@@ -118,7 +119,7 @@
 
       <ul id="sentence-list" class="sentence-list"></ul>
       <div id="empty-state" class="empty" hidden>
-        <div class="brand-mark" aria-hidden="true">“</div>
+        <div class="shelf" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
         <p>아직 담긴 문장이 없어요.<br>마음에 남은 첫 문장을 담아보세요.</p>
       </div>
       <div id="no-result" class="empty" hidden>
@@ -195,8 +196,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="config.js?v=11"></script>
+  <script src="config.js?v=12"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
