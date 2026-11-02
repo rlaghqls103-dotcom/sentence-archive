@@ -15,6 +15,8 @@ const CORS = {
 };
 
 const MAX_BASE64 = 6_000_000; // 약 4.5MB 이미지
+// 하루 인식 한도 (Supabase Secrets 에 OCR_DAILY_LIMIT 을 넣으면 바꿀 수 있어요). 30회 × 31일 = 930회 < 무료 1,000회
+const DAILY_LIMIT = Number(Deno.env.get("OCR_DAILY_LIMIT") ?? 30) || 30;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -91,7 +93,17 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("GOOGLE_VISION_API_KEY");
   if (!key) return json({ error: "no_key", message: "구글 API 키가 아직 설정되지 않았어요." }, 500);
 
-  // 3) 구글 Cloud Vision 으로 읽기
+  // 3) 하루 사용 한도 (구글 무료 범위 월 1,000회를 넘지 않도록, 전체 합계 기준)
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const { data: used, error: usageError } = await admin.rpc("ocr_take", { max_per_day: DAILY_LIMIT });
+  if (usageError) {
+    return json({ error: "usage_not_ready", message: "사용량 표가 아직 없어요. (schema.sql 실행 필요)" }, 500);
+  }
+  if (used === null) {
+    return json({ error: "daily_limit", limit: DAILY_LIMIT, message: `오늘 인식 한도(${DAILY_LIMIT}회)를 다 썼어요.` }, 429);
+  }
+
+  // 4) 구글 Cloud Vision 으로 읽기
   const res = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${key}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -115,5 +127,6 @@ Deno.serve(async (req) => {
     width: page?.width ?? 0,
     height: page?.height ?? 0,
     lines: toLines(r?.fullTextAnnotation),
+    remaining: Math.max(0, DAILY_LIMIT - used),
   });
 });

@@ -63,7 +63,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v8";
+  const APP_VERSION = "v9";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -728,6 +728,11 @@
     const status = res && res.status;
     if (status === 404) return "아직 구글 인식이 연결되지 않았어요. (Supabase에 ocr 함수 배포 필요)";
     if (status === 401) return "로그인이 풀렸어요. 다시 로그인해 주세요.";
+    if (status === 429 || (body && body.error === "daily_limit")) {
+      const n = (body && body.limit) || 30;
+      return `오늘 인식 한도(${n}회)를 다 썼어요. 내일 다시 쓸 수 있어요. 오늘은 사진 속 글자를 길게 눌러 골라주세요.`;
+    }
+    if (body && body.error === "usage_not_ready") return "사용량 표가 아직 없어요. (Supabase에서 schema.sql 실행 필요)";
     if (body && body.error === "no_key") return "구글 API 키가 아직 설정되지 않았어요. (Supabase Secrets 확인)";
     if (body && body.message) return "글자 인식에 실패했어요: " + body.message;
     return "글자 인식에 실패했어요. 잠시 후 다시 시도해 주세요.";
@@ -753,7 +758,8 @@
       closePhoto();
       insertText(text);
       content.focus();
-      toast("골라낸 문장을 넣었어요. 틀린 글자는 고쳐주세요");
+      const left = typeof data.remaining === "number" && data.remaining <= 10 ? ` (오늘 남은 인식 ${data.remaining}회)` : "";
+      toast("골라낸 문장을 넣었어요. 틀린 글자는 고쳐주세요" + left);
     } catch (err) {
       console.error(err);
       if (photoFile === file) setOcrProgress(1, await cloudErrorText(null));

@@ -64,8 +64,14 @@
 4. **API 및 서비스 → 사용자 인증 정보 → 사용자 인증 정보 만들기 → API 키**를 만들어요.
    - 키 수정 화면의 **API 제한사항**에서 **키 제한 → Cloud Vision API**만 골라 저장해요.
 5. (권장) **결제 → 예산 및 알림**에서 작은 예산(예: 1,000원) 알림을 걸어요.
+6. **무료 체험(90일)이 끝나기 전에 [업그레이드]** 를 눌러 유료 계정으로 바꿔요. 업그레이드하지 않으면 체험이 끝날 때 인식이 멈춰요.
+   - 업그레이드해도 Cloud Vision은 **월 1,000회까지 무료**예요. 남은 체험 크레딧도 그대로 남아요.
+
+> **하루 30회 한도**: 중간 서버가 하루(한국 시간) 30회까지만 구글에 요청해요. 한 달 최대 930회라 무료 범위를 넘지 않아요.
+> 한도를 바꾸려면 Supabase Secrets에 `OCR_DAILY_LIMIT`(예: `50`)을 추가하세요.
 
 **Supabase**
+0. **SQL Editor**에서 [`supabase/schema.sql`](supabase/schema.sql)을 다시 실행해요. 하루 사용량 표가 추가돼요. 여러 번 실행해도 괜찮아요.
 1. **Edge Functions → Secrets**에서 `GOOGLE_VISION_API_KEY` 이름으로 위의 API 키를 저장해요.
 2. **Edge Functions → Deploy a new function → Via Editor**를 열어요.
    - 이름을 `ocr`로 하고, [`supabase/functions/ocr/index.ts`](supabase/functions/ocr/index.ts) 내용을 붙여넣은 뒤 **Deploy**를 눌러요.
