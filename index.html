@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>문장 수집창고</title>
+  <meta name="description" content="책 속에서 만난 문장을 모아두는 나만의 창고">
+
+  <!-- 아이폰 홈 화면 앱 설정 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="문장창고">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#f4eee2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1b1916" media="(prefers-color-scheme: dark)">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- 설정 전 안내 -->
+    <section id="view-setup" class="view center-view" hidden>
+      <div class="paper-card narrow">
+        <h1 class="brand">문장 수집창고</h1>
+        <p class="muted">아직 저장소(Supabase)가 연결되지 않았어요.<br><code>config.js</code>에 프로젝트 주소와 키를 넣어주세요.</p>
+      </div>
+    </section>
+
+    <!-- 로그인 -->
+    <section id="view-auth" class="view center-view" hidden>
+      <form id="auth-form" class="paper-card narrow" autocomplete="on">
+        <div class="brand-mark" aria-hidden="true">“</div>
+        <h1 class="brand">문장 수집창고</h1>
+        <p class="muted small">책 속에서 만난 문장을 모아두는 나만의 창고</p>
+
+        <label class="field">
+          <span>이메일</span>
+          <input id="auth-email" type="email" name="email" autocomplete="username" required inputmode="email">
+        </label>
+        <label class="field">
+          <span>비밀번호</span>
+          <input id="auth-password" type="password" name="password" autocomplete="current-password" required minlength="6">
+        </label>
+
+        <button id="auth-submit" class="btn primary block" type="submit">로그인</button>
+        <p id="auth-message" class="form-message" role="status"></p>
+        <button id="auth-toggle" class="btn link" type="button">처음이신가요? 계정 만들기</button>
+      </form>
+    </section>
+
+    <!-- 메인 -->
+    <section id="view-main" class="view" hidden>
+      <header class="app-header">
+        <div>
+          <h1 class="brand small-brand">문장 수집창고</h1>
+          <p id="count-line" class="muted small"></p>
+        </div>
+        <div class="header-actions">
+          <span id="sync-state" class="sync-dot" title="동기화 상태" aria-label="동기화 상태"></span>
+          <button id="logout-btn" class="btn ghost small" type="button">로그아웃</button>
+        </div>
+      </header>
+
+      <!-- 문장 입력 -->
+      <form id="compose" class="paper-card compose">
+        <div class="compose-top">
+          <span class="today" id="today-label"></span>
+          <div class="compose-tools">
+            <button id="join-lines-btn" class="btn ghost small" type="button" title="사진에서 복사하면 생기는 줄바꿈을 한 줄로 합쳐요">줄 합치기</button>
+            <button id="paste-btn" class="btn soft small" type="button">붙여넣기</button>
+          </div>
+        </div>
+
+        <textarea id="compose-content" class="sentence-input" rows="4" required
+          placeholder="카메라로 찍은 책 페이지에서 문장을 복사해 붙여넣으세요."></textarea>
+
+        <div class="compose-meta">
+          <label class="field grow">
+            <span>책 제목</span>
+            <input id="compose-book" type="text" list="book-list" autocomplete="off" enterkeyhint="next" placeholder="예) 데미안">
+          </label>
+          <label class="field page-field">
+            <span>페이지</span>
+            <input id="compose-page" type="text" inputmode="numeric" pattern="[0-9\-~, ]*" autocomplete="off" enterkeyhint="done" placeholder="123">
+          </label>
+        </div>
+        <datalist id="book-list"></datalist>
+
+        <button id="compose-submit" class="btn primary block" type="submit">문장 담기</button>
+
+        <details class="tip">
+          <summary>사진 속 문장을 가져오는 방법</summary>
+          <ol>
+            <li><b>카메라 앱</b>으로 책 페이지를 비추거나 찍은 뒤, 오른쪽 아래 <b>텍스트 인식 버튼</b>을 눌러요.</li>
+            <li>원하는 문장을 길게 눌러 선택하고 <b>복사</b>해요.</li>
+            <li>이 앱으로 돌아와 <b>붙여넣기</b>를 누르면 끝이에요.</li>
+          </ol>
+          <p class="muted small">입력칸을 길게 누르면 나오는 <b>“텍스트 스캔”</b>을 고르면, 앱을 나가지 않고 카메라로 바로 문장을 넣을 수도 있어요.</p>
+        </details>
+      </form>
+
+      <!-- 검색 / 책 필터 -->
+      <div class="list-tools">
+        <input id="search" class="search" type="search" placeholder="문장이나 책 제목으로 찾기" autocomplete="off" enterkeyhint="search">
+        <div id="book-chips" class="chips" role="tablist" aria-label="책별 보기"></div>
+      </div>
+
+      <ul id="sentence-list" class="sentence-list"></ul>
+      <div id="empty-state" class="empty" hidden>
+        <div class="brand-mark" aria-hidden="true">“</div>
+        <p>아직 담긴 문장이 없어요.<br>마음에 남은 첫 문장을 담아보세요.</p>
+      </div>
+      <div id="no-result" class="empty" hidden>
+        <p>찾는 문장이 없어요.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- 수정 창 -->
+  <dialog id="edit-dialog" class="sheet">
+    <form id="edit-form" method="dialog" class="paper-card">
+      <div class="sheet-head">
+        <h2>문장 고치기</h2>
+        <span id="edit-date" class="muted small"></span>
+      </div>
+      <textarea id="edit-content" class="sentence-input" rows="5" required></textarea>
+      <div class="compose-meta">
+        <label class="field grow">
+          <span>책 제목</span>
+          <input id="edit-book" type="text" list="book-list" autocomplete="off">
+        </label>
+        <label class="field page-field">
+          <span>페이지</span>
+          <input id="edit-page" type="text" inputmode="numeric" autocomplete="off">
+        </label>
+      </div>
+      <label class="field">
+        <span>나의 생각 <span class="muted">(선택)</span></span>
+        <textarea id="edit-memo" rows="2" placeholder="이 문장이 마음에 남은 이유"></textarea>
+      </label>
+      <div class="sheet-actions">
+        <button id="edit-delete" class="btn danger" type="button">삭제</button>
+        <span class="spacer"></span>
+        <button id="edit-cancel" class="btn ghost" type="button">취소</button>
+        <button id="edit-save" class="btn primary" type="submit">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
