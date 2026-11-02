@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=7">
 </head>
 <body>
   <div id="app">
@@ -103,7 +103,7 @@
           <ol>
             <li><b>📷</b>을 눌러 책 페이지를 찍어요.</li>
             <li>사진 속 글자를 <b>길게 눌러</b> 원하는 문장만 고르고 <b>복사</b>한 뒤, <b>붙여넣고 닫기</b>를 눌러요.</li>
-            <li>고르기 번거로우면 <b>자동 인식</b>을 눌러요. 사진 속 글자가 전부 들어오니 필요 없는 부분만 지우면 돼요.</li>
+            <li>또는 <b>✂︎ 골라서 인식</b>을 누르고, 원하는 문장을 손가락으로 쓸어 상자로 감싼 뒤 <b>이 부분 읽기</b>를 눌러요.</li>
           </ol>
           <p class="muted small">아이폰 <b>카메라 앱</b>의 텍스트 인식 버튼으로 문장을 복사한 뒤, 여기서 <b>붙여넣기</b>를 눌러도 돼요.</p>
           <p class="muted small">입력칸을 길게 누르면 나오는 <b>“텍스트 스캔”</b>을 고르면, 앱을 나가지 않고 카메라로 바로 문장을 넣을 수도 있어요.</p>
@@ -158,30 +158,45 @@
     </form>
   </dialog>
 
-  <!-- 사진 보기 (라이브 텍스트로 고르기 / 자동 인식) -->
+  <!-- 사진 보기: 라이브 텍스트로 고르기 / 범위를 골라 인식하기 -->
   <dialog id="photo-dialog" class="photo-dialog" aria-label="찍은 사진">
-    <div class="photo-shell">
-      <p class="photo-hint">글자를 <b>길게 눌러</b> 원하는 문장을 고른 뒤 <b>복사</b>하세요</p>
-      <div class="photo-stage">
-        <img id="photo-img" alt="찍은 책 페이지">
+    <div id="photo-shell" class="photo-shell" data-mode="view">
+      <p class="photo-hint mode-view">글자를 <b>길게 눌러</b> 원하는 문장을 고른 뒤 <b>복사</b>하세요</p>
+      <p class="photo-hint mode-crop">읽을 문장을 손가락으로 <b>쓸어서 상자로 감싸세요</b></p>
+      <div id="photo-stage" class="photo-stage">
+        <div id="photo-frame" class="photo-frame">
+          <img id="photo-img" alt="찍은 책 페이지">
+          <div id="crop-layer" class="crop-layer" aria-hidden="true">
+            <div id="crop-box" class="crop-box" hidden>
+              <span class="crop-handle" data-h="nw"></span>
+              <span class="crop-handle" data-h="ne"></span>
+              <span class="crop-handle" data-h="sw"></span>
+              <span class="crop-handle" data-h="se"></span>
+            </div>
+          </div>
+        </div>
       </div>
       <div id="ocr-progress" class="ocr-progress" hidden>
         <div class="ocr-bar"><span id="ocr-bar-fill"></span></div>
         <span id="ocr-label">글자를 읽는 중…</span>
       </div>
-      <div class="photo-actions">
+      <div class="photo-actions mode-view">
         <button id="photo-close" class="btn ghost-dark" type="button">닫기</button>
         <span id="photo-retake" class="btn ghost-dark file-btn">다시 찍기<input id="retake-input" type="file" accept="image/*" capture="environment" aria-label="다시 찍기"></span>
-        <button id="photo-ocr" class="btn ghost-dark" type="button">자동 인식</button>
+        <button id="photo-ocr" class="btn ghost-dark" type="button">✂︎ 골라서 인식</button>
         <button id="photo-paste" class="btn primary" type="button">붙여넣고 닫기</button>
+      </div>
+      <div class="photo-actions mode-crop">
+        <button id="crop-cancel" class="btn ghost-dark" type="button">취소</button>
+        <button id="crop-read" class="btn primary" type="button" disabled>이 부분 읽기</button>
       </div>
     </div>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="config.js?v=6"></script>
+  <script src="config.js?v=7"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

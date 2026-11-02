@@ -63,7 +63,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v6";
+  const APP_VERSION = "v7";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -483,11 +483,17 @@
 
   const photoInputs = [$("camera-input"), $("retake-input")];
   const photoDialog = $("photo-dialog");
+  const photoShell = $("photo-shell");
+  const photoStage = $("photo-stage");
+  const photoFrame = $("photo-frame");
   const photoImg = $("photo-img");
-  const ocrBtn = $("photo-ocr");
+  const cropLayer = $("crop-layer");
+  const cropBoxEl = $("crop-box");
+  const cropReadBtn = $("crop-read");
   let photoFile = null;
   let photoUrl = null;
   let ocrBusy = false;
+  let cropBox = null; // 사진 기준 비율 좌표 { x, y, w, h } (0~1)
 
   // 📷·다시 찍기 버튼 위에는 투명한 사진 선택칸이 겹쳐 있어서, 누르면 기기가 직접 카메라를 열어요.
   // (아이폰 홈 화면 앱은 스크립트나 label 로 여는 방식을 막을 때가 있어요)
@@ -501,20 +507,42 @@
     if (photoUrl) URL.revokeObjectURL(photoUrl);
     photoUrl = URL.createObjectURL(file);
     photoImg.src = photoUrl;
+    setMode("view");
     setOcrProgress(null);
     if (!photoDialog.open) photoDialog.showModal();
   }
   for (const input of photoInputs) input.addEventListener("change", onPhotoPicked);
+
+  // 사진을 화면 안에 꽉 차게 맞추고, 틀(frame)을 사진 크기와 똑같이 맞춰요
+  function fitFrame() {
+    if (!photoImg.naturalWidth) return;
+    const sw = photoStage.clientWidth, sh = photoStage.clientHeight;
+    const scale = Math.min(sw / photoImg.naturalWidth, sh / photoImg.naturalHeight);
+    photoFrame.style.width = Math.floor(photoImg.naturalWidth * scale) + "px";
+    photoFrame.style.height = Math.floor(photoImg.naturalHeight * scale) + "px";
+    drawCropBox();
+  }
+  photoImg.addEventListener("load", fitFrame);
+  window.addEventListener("resize", () => { if (photoDialog.open) fitFrame(); });
+
+  function setMode(mode) {
+    photoShell.dataset.mode = mode;
+    if (mode === "view") setCropBox(null);
+    setOcrProgress(null);
+  }
 
   function closePhoto() {
     if (photoDialog.open) photoDialog.close();
   }
   photoDialog.addEventListener("close", () => {
     photoImg.removeAttribute("src");
+    photoFrame.style.width = photoFrame.style.height = "";
     if (photoUrl) URL.revokeObjectURL(photoUrl);
     photoUrl = null;
     photoFile = null;
-    setOcrProgress(null);
+    setMode("view");
+    pageOcr = null;
+    releaseOcrWorker();
   });
   $("photo-close").addEventListener("click", closePhoto);
 
@@ -540,7 +568,95 @@
     $("ocr-label").textContent = label || `글자를 읽는 중… ${Math.round(p * 100)}%`;
   }
 
-  // 글자 인식 라이브러리는 [자동 인식]을 처음 누를 때만 받아요 (앱이 가볍게 열리도록)
+  // ---------- ✂︎ 범위 선택 ----------
+
+  $("photo-ocr").addEventListener("click", () => {
+    setMode("crop");
+    // 상자를 그리는 동안 사진 전체를 미리 읽어둬요 → [이 부분 읽기]를 누르면 바로 결과가 나와요
+    if (!(pageOcr && pageOcr.file === photoFile && pageOcr.done)) setOcrProgress(0.05, PREPARING);
+    startPageOcr(photoFile)
+      .then(() => { if (photoShell.dataset.mode === "crop" && !ocrBusy) setOcrProgress(1, "글자를 다 읽었어요. 상자를 그리고 [이 부분 읽기]를 누르세요."); })
+      .catch(() => { if (photoShell.dataset.mode === "crop" && !ocrBusy) setOcrProgress(1, "글자 인식을 준비하지 못했어요. 인터넷 연결을 확인해 주세요."); });
+  });
+  $("crop-cancel").addEventListener("click", () => setMode("view"));
+
+  function setCropBox(box) {
+    cropBox = box;
+    cropReadBtn.disabled = !box || ocrBusy;
+    drawCropBox();
+  }
+  function drawCropBox() {
+    cropLayer.classList.toggle("has-box", !!cropBox);
+    cropBoxEl.hidden = !cropBox;
+    if (!cropBox) return;
+    Object.assign(cropBoxEl.style, {
+      left: cropBox.x * 100 + "%",
+      top: cropBox.y * 100 + "%",
+      width: cropBox.w * 100 + "%",
+      height: cropBox.h * 100 + "%",
+    });
+  }
+
+  const clamp01 = (v) => Math.min(1, Math.max(0, v));
+  let drag = null;
+
+  function pointFromEvent(e) {
+    const r = cropLayer.getBoundingClientRect();
+    return { x: clamp01((e.clientX - r.left) / r.width), y: clamp01((e.clientY - r.top) / r.height), r };
+  }
+
+  cropLayer.addEventListener("pointerdown", (e) => {
+    if (ocrBusy) return;
+    e.preventDefault();
+    const pt = pointFromEvent(e);
+    const handle = e.target.closest(".crop-handle");
+    if (handle && cropBox) {
+      // 모서리를 잡으면: 반대쪽 모서리를 고정하고 크기 조절
+      const h = handle.dataset.h;
+      const fx = h.includes("w") ? cropBox.x + cropBox.w : cropBox.x;
+      const fy = h.includes("n") ? cropBox.y + cropBox.h : cropBox.y;
+      drag = { type: "draw", ax: fx, ay: fy };
+    } else if (cropBox && e.target.closest(".crop-box")) {
+      drag = { type: "move", sx: pt.x, sy: pt.y, box: { ...cropBox } };
+    } else {
+      drag = { type: "draw", ax: pt.x, ay: pt.y };
+      setCropBox({ x: pt.x, y: pt.y, w: 0, h: 0 });
+    }
+    cropLayer.setPointerCapture(e.pointerId);
+  });
+
+  cropLayer.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const pt = pointFromEvent(e);
+    if (drag.type === "move") {
+      const b = drag.box;
+      const x = Math.min(1 - b.w, Math.max(0, b.x + pt.x - drag.sx));
+      const y = Math.min(1 - b.h, Math.max(0, b.y + pt.y - drag.sy));
+      setCropBox({ ...b, x, y });
+    } else {
+      setCropBox({
+        x: Math.min(drag.ax, pt.x),
+        y: Math.min(drag.ay, pt.y),
+        w: Math.abs(pt.x - drag.ax),
+        h: Math.abs(pt.y - drag.ay),
+      });
+    }
+  });
+
+  function endDrag(e) {
+    if (!drag) return;
+    drag = null;
+    try { cropLayer.releasePointerCapture(e.pointerId); } catch { /* 무시 */ }
+    // 너무 작은 상자(그냥 톡 누른 것)는 지워요
+    const r = cropLayer.getBoundingClientRect();
+    if (cropBox && (cropBox.w * r.width < 16 || cropBox.h * r.height < 10)) setCropBox(null);
+  }
+  cropLayer.addEventListener("pointerup", endDrag);
+  cropLayer.addEventListener("pointercancel", endDrag);
+
+  // ---------- 글자 인식 ----------
+
+  // 글자 인식 라이브러리는 [골라서 인식]을 처음 누를 때만 받아요 (앱이 가볍게 열리도록)
   const TESSERACT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js";
   let tesseractLoading = null;
   function loadTesseract() {
@@ -550,23 +666,102 @@
         const s = document.createElement("script");
         s.src = TESSERACT_URL;
         s.onload = () => resolve(window.Tesseract);
-        s.onerror = () => { tesseractLoading = null; reject(new Error("load failed")); };
+        s.onerror = () => { tesseractLoading = null; s.remove(); reject(new Error("load failed")); };
         document.head.append(s);
       });
     }
     return tesseractLoading;
   }
 
-  // 큰 사진은 줄여서 인식해요 (아이폰 메모리·속도). 사진 방향(EXIF)은 브라우저가 맞춰줘요.
-  async function shrinkForOcr(file, maxSide = 2000) {
-    const bmp = await createImageBitmap(file);
-    const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+  // 사진 창이 열려 있는 동안은 인식 도구를 다시 써서, 두 번째부터는 바로 읽어요
+  let ocrWorkerPromise = null;
+  function getOcrWorker() {
+    if (!ocrWorkerPromise) {
+      ocrWorkerPromise = (async () => {
+        const Tesseract = await loadTesseract();
+        return Tesseract.createWorker("kor", 1, {
+          logger: (m) => { if (photoShell.dataset.mode === "crop" || ocrBusy) ocrProgress(m); },
+        });
+      })();
+      ocrWorkerPromise.catch(() => { ocrWorkerPromise = null; });
+    }
+    return ocrWorkerPromise;
+  }
+  function releaseOcrWorker() {
+    const p = ocrWorkerPromise;
+    ocrWorkerPromise = null;
+    if (p) p.then((w) => w.terminate()).catch(() => {});
+  }
+
+  // 사진 전체를 한 번 읽어 글자마다 위치를 받아두고, 상자 안에 들어온 단어만 골라내요.
+  // (잘라서 읽으면 기울어진 사진에서 반쯤 잘린 줄 때문에 오히려 인식이 나빠져요)
+  let pageOcr = null; // { file, promise, done }
+
+  async function photoToCanvas(file) {
+    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+    // 큰 사진은 긴 변 2400px로 줄여요 (아이폰 메모리·속도). 작은 사진은 그대로 읽는 게 더 정확했어요.
+    const long = Math.max(bmp.width, bmp.height);
+    const scale = long > 2400 ? 2400 / long : 1;
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(bmp.width * scale);
     canvas.height = Math.round(bmp.height * scale);
-    canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
     if (bmp.close) bmp.close();
     return canvas;
+  }
+
+  function startPageOcr(file) {
+    if (pageOcr && pageOcr.file === file) return pageOcr.promise;
+    const job = { file, done: false };
+    job.promise = (async () => {
+      const workerPromise = getOcrWorker();
+      const [worker, canvas] = await Promise.all([workerPromise, photoToCanvas(file)]);
+      // 준비하는 사이 창을 닫았거나 다른 사진을 골랐으면 멈춰요 (이미 정리된 인식 도구를 쓰지 않도록)
+      if (pageOcr !== job || ocrWorkerPromise !== workerPromise) throw new Error("cancelled");
+      const { data } = await worker.recognize(canvas, {}, { blocks: true, text: false });
+      const W = canvas.width, H = canvas.height;
+      const lines = [];
+      for (const blk of data.blocks || []) for (const para of blk.paragraphs || []) for (const line of para.lines || []) {
+        // 위치는 사진 기준 비율(0~1)로, 간격 계산용으로 픽셀 값도 함께 보관
+        const words = line.words
+          .filter((w) => w.text && w.text.trim())
+          .map((w) => ({
+            text: w.text.trim(),
+            px0: w.bbox.x0, px1: w.bbox.x1, ph: w.bbox.y1 - w.bbox.y0,
+            cx: (w.bbox.x0 + w.bbox.x1) / 2 / W,
+            cy: (w.bbox.y0 + w.bbox.y1) / 2 / H,
+          }));
+        if (words.length) lines.push({ words, cy: words.reduce((a, w) => a + w.cy, 0) / words.length });
+      }
+      job.done = true;
+      return lines;
+    })();
+    job.promise.catch(() => { if (pageOcr === job) pageOcr = null; });
+    pageOcr = job;
+    return job.promise;
+  }
+
+  // 상자 안에 중심이 들어온 단어만 모아요. 띄어쓰기는 단어 사이 실제 간격으로 정해요.
+  // 기울어진 사진에서는 위아래 줄 끝 몇 단어가 상자 모서리에 걸리는데,
+  // 줄 전체의 중심이 상자 밖이면 그 줄은 빼요.
+  function wordsInBox(lines, box) {
+    const out = [];
+    const inY = (y) => y >= box.y && y <= box.y + box.h;
+    const inX = (x) => x >= box.x && x <= box.x + box.w;
+    for (const line of lines) {
+      if (!inY(line.cy)) continue;
+      const ws = line.words.filter((w) => inX(w.cx) && inY(w.cy));
+      if (!ws.length) continue;
+      ws.sort((a, b) => a.px0 - b.px0);
+      const hs = ws.map((w) => w.ph).sort((a, b) => a - b);
+      const h = hs[hs.length >> 1];
+      let t = ws[0].text;
+      for (let i = 1; i < ws.length; i++) t += (ws[i].px0 - ws[i - 1].px1 > h * 0.3 ? " " : "") + ws[i].text;
+      out.push(t);
+    }
+    return out.join("\n");
   }
 
   function cleanOcrText(text) {
@@ -577,44 +772,39 @@
     );
   }
 
-  ocrBtn.addEventListener("click", async () => {
-    if (ocrBusy || !photoFile) return;
+  const PREPARING = "글자 인식 도구를 준비하는 중… (처음 한 번은 조금 걸려요)";
+  function ocrProgress(m) {
+    if (m.status === "recognizing text") setOcrProgress(0.3 + m.progress * 0.7, `사진 속 글자를 읽는 중… ${Math.round(m.progress * 100)}%`);
+    else if (m.status && m.status.includes("load")) setOcrProgress(0.05 + (m.progress || 0) * 0.25, PREPARING);
+  }
+
+  cropReadBtn.addEventListener("click", async () => {
+    if (ocrBusy || !photoFile || !cropBox) return;
     ocrBusy = true;
-    ocrBtn.disabled = true;
+    cropReadBtn.disabled = true;
     const file = photoFile;
-    let worker = null;
+    const box = { ...cropBox };
     try {
-      setOcrProgress(0.02, "글자 인식 도구를 준비하는 중… (처음 한 번은 조금 걸려요)");
-      const Tesseract = await loadTesseract();
-      const image = await shrinkForOcr(file);
-      worker = await Tesseract.createWorker("kor", 1, {
-        logger: (m) => {
-          if (m.status === "recognizing text") setOcrProgress(0.3 + m.progress * 0.7);
-          else if (m.status && m.status.includes("loading")) {
-            setOcrProgress(0.05 + (m.progress || 0) * 0.25, "글자 인식 도구를 준비하는 중… (처음 한 번은 조금 걸려요)");
-          }
-        },
-      });
-      const { data } = await worker.recognize(image);
-      const text = cleanOcrText(data.text || "");
-      if (photoFile !== file) return; // 그새 다시 찍었으면 무시
+      if (!(pageOcr && pageOcr.file === file && pageOcr.done)) setOcrProgress(0.05, PREPARING);
+      const lines = await startPageOcr(file);
+      if (photoFile !== file) return; // 그새 다시 찍었거나 창을 닫았으면 무시
+      const text = cleanOcrText(wordsInBox(lines, box));
       if (!text) {
-        setOcrProgress(1, "글자를 찾지 못했어요. 더 밝고 가까이 다시 찍어 보세요.");
+        setOcrProgress(1, "상자 안에서 글자를 찾지 못했어요. 상자를 조금 넓혀 보세요.");
         return;
       }
       closePhoto();
       insertText(text);
       content.focus();
-      toast("사진 속 글자를 넣었어요. 필요 없는 부분은 지워주세요");
+      toast("골라낸 문장을 넣었어요. 틀린 글자는 고쳐주세요");
     } catch (err) {
       console.error(err);
       setOcrProgress(1, navigator.onLine
         ? "글자 인식에 실패했어요. 다시 시도해 주세요."
-        : "글자 인식은 인터넷 연결이 필요해요.");
+        : "처음 한 번은 인식 도구를 받아야 해서 인터넷 연결이 필요해요.");
     } finally {
-      if (worker) worker.terminate();
       ocrBusy = false;
-      ocrBtn.disabled = false;
+      cropReadBtn.disabled = !cropBox;
     }
   });
 

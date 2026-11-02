@@ -474,15 +474,62 @@ dialog.photo-dialog::backdrop { background: #15120f; }
   border-radius: 10px;
   background: #0d0b09;
 }
-.photo-stage img {
+/* 사진 크기에 딱 맞는 틀 (크기는 app.js 가 맞춰요). 선택 상자 좌표의 기준이에요. */
+.photo-frame { position: relative; flex: none; }
+.photo-frame img {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
   -webkit-user-select: auto;
   user-select: auto;
   -webkit-touch-callout: default;
 }
+
+/* 보기 모드 / 범위 선택 모드 전환 */
+.photo-shell[data-mode="view"] .mode-crop,
+.photo-shell[data-mode="crop"] .mode-view { display: none !important; }
+.photo-shell[data-mode="crop"] .photo-stage { overflow: hidden; }
+
+.crop-layer {
+  position: absolute;
+  inset: 0;
+  display: none;
+  touch-action: none;
+  cursor: crosshair;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.photo-shell[data-mode="crop"] .crop-layer { display: block; }
+.photo-shell[data-mode="crop"] .crop-layer:not(.has-box) { background: rgba(0, 0, 0, .25); }
+.crop-box {
+  position: absolute;
+  border: 2px solid #f4c9a2;
+  border-radius: 4px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .55);
+  cursor: move;
+}
+.crop-handle {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+  display: grid;
+  place-items: center;
+}
+.crop-handle::after {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #f4c9a2;
+  box-shadow: 0 0 0 2px #15120f;
+}
+.crop-handle[data-h="nw"] { left: 0; top: 0; cursor: nwse-resize; }
+.crop-handle[data-h="ne"] { left: 100%; top: 0; cursor: nesw-resize; }
+.crop-handle[data-h="sw"] { left: 0; top: 100%; cursor: nesw-resize; }
+.crop-handle[data-h="se"] { left: 100%; top: 100%; cursor: nwse-resize; }
+
 .ocr-progress { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: .85rem; color: #d9cdbb; }
 .ocr-bar { flex: 1; height: 6px; border-radius: 3px; background: #3a332b; overflow: hidden; }
 .ocr-bar span { display: block; height: 100%; width: 0; background: #cf9d74; transition: width .2s; }
