@@ -15,10 +15,10 @@
   --danger: #d0342c;
   --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 18px rgba(0, 0, 0, .05);
 
-  /* 책 색 팔레트 (app.js 의 BOOK_COLORS 와 같은 순서) — 서가 줄무늬에 써요 */
-  --c1: #d63e26; --c2: #2c5aa8; --c3: #f2b530; --c4: #2f8a5f;
-  --c5: #7d4e9e; --c6: #17808e; --c7: #ee8aa0; --c8: #c0632a;
-  --c9: #253b66; --c10: #9aa23a; --c11: #c2397a; --c12: #6fb3e0;
+  /* 서가 줄무늬 색 (책장 사진에서 뽑은 팔레트 중 일부) */
+  --c1: #c65b34; --c2: #238eaa; --c3: #c98f32; --c4: #516a39;
+  --c5: #8a5b87; --c6: #56799b; --c7: #d78b90; --c8: #a73229;
+  --c9: #494f76; --c10: #817c4c; --c11: #93535f; --c12: #73a9c4;
 
   --serif: "Noto Serif KR", "Nanum Myeongjo", "AppleMyungjo", "Batang", serif;
   --sans: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", system-ui, sans-serif;
