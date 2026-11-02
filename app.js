@@ -74,7 +74,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v17";
+  const APP_VERSION = "v18";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -307,10 +307,11 @@
     show("main");
     loadCustomFont().catch((err) => console.warn("내 폰트를 불러오지 못했어요", err));
     items = store.get("cache:" + user.id, []);
-    bookCustom = toColorMap(store.get("colors:" + user.id, []));
+    loadBookRows(store.get("colors:" + user.id, []));
     const lastBook = store.get("lastBook", "");
     if (lastBook && !$("compose-book").value) $("compose-book").value = lastBook;
     paintBook($("compose-book-swatch"), $("compose-book").value);
+    if (!$("compose-author").value) $("compose-author").value = authorOf($("compose-book").value);
     const draft = store.get("draft", "");
     if (draft && !$("compose-content").value) $("compose-content").value = draft;
     render();
@@ -342,11 +343,10 @@
     items = all;
     store.set("cache:" + user.id, items);
     // 직접 고른 책 색 (표가 아직 없으면 조용히 넘어가요)
-    const { data: colors, error: colorError } = await sb.from("book_colors").select("book_title,color");
-    if (!colorError && colors) {
-      bookCustom = toColorMap(colors);
-      store.set("colors:" + user.id, [...bookCustom].map(([book_title, color]) => ({ book_title, color })));
-    }
+    // 책 정보(색·작가). 작가 칸이 아직 없으면(SQL 실행 전) 색만 불러와요
+    let { data: books, error: booksError } = await sb.from("book_colors").select("book_title,color,author");
+    if (booksError) ({ data: books, error: booksError } = await sb.from("book_colors").select("book_title,color"));
+    if (!booksError && books) { loadBookRows(books); saveBooksCache(); }
     render();
     setSync(channel && channel.state === "joined" ? "live" : "idle");
   }
@@ -377,11 +377,13 @@
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "book_colors" }, (payload) => {
         if (payload.eventType === "DELETE") {
-          if (payload.old && payload.old.book_title) bookCustom.delete(payload.old.book_title);
-        } else if (payload.new && payload.new.user_id === user.id && HEX.test(payload.new.color || "")) {
-          bookCustom.set(payload.new.book_title, payload.new.color);
+          if (payload.old && payload.old.book_title) { bookCustom.delete(payload.old.book_title); bookAuthor.delete(payload.old.book_title); }
+        } else if (payload.new && payload.new.user_id === user.id) {
+          const r = payload.new;
+          if (HEX.test(r.color || "")) bookCustom.set(r.book_title, r.color); else bookCustom.delete(r.book_title);
+          if (r.author) bookAuthor.set(r.book_title, r.author); else bookAuthor.delete(r.book_title);
         }
-        store.set("colors:" + user.id, [...bookCustom].map(([book_title, color]) => ({ book_title, color })));
+        saveBooksCache();
         render();
         if (dialog.open) renderSwatches();
       })
@@ -426,18 +428,31 @@
     "라벤더", "다홍", "하늘", "라임", "플럼", "비취", "살구", "감청", "핫핑크",
   ];
   const AUTO = AUTO_NAMES.map((n) => BOOK_COLORS.findIndex(([, name]) => name === n)).filter((i) => i >= 0);
-  // 배경색에 맞춰 더 잘 읽히는 글자색(흰색/먹색)을 골라요
-  function inkFor(hex) {
-    const lum = (h) => {
-      const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
-        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-    };
-    const L = lum(hex);
-    const vsWhite = 1.05 / (L + 0.05), vsInk = (L + 0.05) / (lum("#1b1b1b") + 0.05);
-    return vsWhite >= vsInk ? "#ffffff" : "#1b1b1b";
+  // 표지 색 위 글자색: 기본은 흰색, 아주 밝은 색(노랑·살구·라임·연두·하늘 등)에서만 먹색
+  function luminance(h) {
+    const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  function inkFor(hex) { return luminance(hex) > 0.40 ? "#1b1b1b" : "#ffffff"; }
+  // 조금 밝은 색 위의 흰 글자는 옅은 그림자로 또렷하게
+  function shadowFor(hex) {
+    const L = luminance(hex);
+    return L <= 0.40 && L > 0.2 ? "0 1px 2px rgba(0, 0, 0, .28)" : "none";
   }
   let bookCustom = new Map(); // 책 제목 → 직접 고른 색 (Supabase book_colors)
+  let bookAuthor = new Map(); // 책 제목 → 작가 (같은 표의 author)
+  const authorOf = (title) => bookAuthor.get((title || "").trim()) || "";
+  // 책 정보(색·작가)를 기기에 저장해 두기
+  function saveBooksCache() {
+    if (!user) return;
+    const titles = new Set([...bookCustom.keys(), ...bookAuthor.keys()]);
+    store.set("colors:" + user.id, [...titles].map((t) => ({ book_title: t, color: bookCustom.get(t) || null, author: bookAuthor.get(t) || null })));
+  }
+  function loadBookRows(rows) {
+    bookCustom = toColorMap(rows);
+    bookAuthor = new Map((rows || []).filter((r) => r && r.book_title && r.author).map((r) => [r.book_title, r.author]));
+  }
   const HEX = /^#[0-9a-f]{6}$/i;
   // 저장된 책 색 목록을 Map 으로 (형식이 맞지 않는 값은 건너뛰어요)
   const toColorMap = (rows) => new Map((rows || [])
@@ -480,15 +495,15 @@
   function bookColor(title) {
     const t = (title || "").trim();
     if (!t) return null;
-    if (bookCustom.has(t)) { const bg = bookCustom.get(t); return { bg, ink: inkFor(bg) }; }
+    if (bookCustom.has(t)) { const bg = bookCustom.get(t); return { bg, ink: inkFor(bg), shadow: shadowFor(bg) }; }
     const i = bookColorMap.has(t) ? bookColorMap.get(t) : freeIndex(t, new Set(bookColorMap.values()));
     const bg = BOOK_COLORS[i][0];
-    return { bg, ink: inkFor(bg) };
+    return { bg, ink: inkFor(bg), shadow: shadowFor(bg) };
   }
   function paintBook(el, title) {
     const c = bookColor(title);
-    if (c) { el.style.setProperty("--book", c.bg); el.style.setProperty("--book-ink", c.ink); }
-    else { el.style.removeProperty("--book"); el.style.removeProperty("--book-ink"); }
+    if (c) { el.style.setProperty("--book", c.bg); el.style.setProperty("--book-ink", c.ink); el.style.setProperty("--book-shadow", c.shadow); }
+    else { el.style.removeProperty("--book"); el.style.removeProperty("--book-ink"); el.style.removeProperty("--book-shadow"); }
   }
 
   function bookStats() {
@@ -517,6 +532,13 @@
     if (i < text.length) parent.append(text.slice(i));
   }
 
+  // 『책 제목』 작가 · p.12
+  function bookLine(it) {
+    const au = authorOf(it.book_title);
+    const title = it.book_title ? `『${it.book_title}』${au ? " " + au : ""}` : "";
+    return [title, it.page ? `p.${it.page}` : ""].filter(Boolean).join(" · ");
+  }
+
   // ---------- 오늘의 문장 ----------
   // 날짜로 고르기 때문에 같은 날에는 PC와 폰에서 같은 문장이 보여요. [다른 문장]으로 넘겨볼 수 있어요.
   const dayKey = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
@@ -531,7 +553,7 @@
     card.dataset.id = it.id;
     paintBook(card, it.book_title);
     $("today-text").textContent = smartQuotes(it.content);
-    $("today-book").textContent = [it.book_title ? `『${it.book_title}』` : "", it.page ? `p.${it.page}` : ""].filter(Boolean).join(" · ");
+    $("today-book").textContent = bookLine(it);
     $("today-next").hidden = items.length < 2;
   }
 
@@ -560,15 +582,15 @@
   }
   function exportText() {
     const blocks = lastShown.map((it) => {
-      const head = [it.book_title ? `『${it.book_title}』` : "", it.page ? `p.${it.page}` : "", fmtDate(it.created_at)].filter(Boolean).join(" · ");
+      const head = [bookLine(it), fmtDate(it.created_at)].filter(Boolean).join(" · ");
       return [head, smartQuotes(it.content), it.memo ? `— ${smartQuotes(it.memo)}` : ""].filter(Boolean).join("\n");
     });
     shareOrDownload(exportName("txt"), "text/plain;charset=utf-8", blocks.join("\n\n") + "\n");
   }
   function exportCsv() {
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const rows = [["날짜", "책 제목", "페이지", "문장", "나의 생각"]]
-      .concat(lastShown.map((it) => [fmtDate(it.created_at), it.book_title, it.page, smartQuotes(it.content), it.memo && smartQuotes(it.memo)]));
+    const rows = [["날짜", "책 제목", "작가", "페이지", "문장", "나의 생각"]]
+      .concat(lastShown.map((it) => [fmtDate(it.created_at), it.book_title, authorOf(it.book_title), it.page, smartQuotes(it.content), it.memo && smartQuotes(it.memo)]));
     // 맨 앞 BOM: 엑셀에서 한글이 깨지지 않게
     shareOrDownload(exportName("csv"), "text/csv;charset=utf-8", "\uFEFF" + rows.map((r) => r.map(esc).join(",")).join("\r\n"));
   }
@@ -583,6 +605,8 @@
       ? `문장 ${items.length}개 · 책 ${books.length}권`
       : "첫 문장을 기다리고 있어요";
 
+    // 작가 자동완성
+    $("author-list").replaceChildren(...[...new Set(bookAuthor.values())].map((a) => Object.assign(document.createElement("option"), { value: a })));
     // 책 제목 자동완성
     const dl = $("book-list");
     dl.replaceChildren(...books.map(([t]) => Object.assign(document.createElement("option"), { value: t })));
@@ -614,7 +638,7 @@
     const shown = items.filter((it) => {
       if (bookFilter && (it.book_title || "").trim() !== bookFilter) return false;
       if (!q) return true;
-      return [it.content, it.book_title, it.memo].some((s) => s && s.toLowerCase().includes(q));
+      return [it.content, it.book_title, authorOf(it.book_title), it.memo].some((s) => s && s.toLowerCase().includes(q));
     });
 
     const list = $("sentence-list");
@@ -643,6 +667,8 @@
       book.append("『");
       highlight(book, it.book_title, q);
       book.append("』");
+      const au = authorOf(it.book_title);
+      if (au) { const a = document.createElement("span"); a.className = "sentence-author"; highlight(a, au, q); book.append(" ", a); }
     }
     if (it.page) book.append(`${it.book_title ? " · " : ""}p.${it.page}`);
     const date = document.createElement("time");
@@ -678,6 +704,11 @@
   // 책 제목 칸 옆 점: 적는 대로 그 책의 색을 보여줘요
   function updateSwatch() { paintBook($("compose-book-swatch"), $("compose-book").value); }
   bookInput.addEventListener("input", updateSwatch);
+  const authorInput = $("compose-author");
+  let authorAuto = true; // 작가 칸을 직접 고치기 전까지는 책에 맞춰 자동으로 채워요
+  function fillAuthor() { if (authorAuto) authorInput.value = authorOf(bookInput.value); }
+  bookInput.addEventListener("input", fillAuthor);
+  authorInput.addEventListener("input", () => { authorAuto = authorInput.value.trim() === ""; });
   setTimeout(updateSwatch, 0);
 
   function updateToday() {
@@ -825,6 +856,7 @@
       return;
     }
     upsertLocal(data);
+    if (book) setBookAuthor(book, authorInput.value); // 작가는 책마다 한 번만 저장
     store.set("lastBook", book);
     store.remove("draft");
     clearBreaks();
@@ -1141,8 +1173,7 @@
     viewingId = id;
     const band = $("view-band");
     paintBook(band, it.book_title);
-    const book = [it.book_title ? `『${it.book_title}』` : "", it.page ? `p.${it.page}` : ""].filter(Boolean).join(" · ");
-    $("view-book").textContent = book;
+    $("view-book").textContent = bookLine(it);
     $("view-date").textContent = fmtDate(it.created_at);
     $("view-date").dateTime = it.created_at;
     $("view-text").textContent = smartQuotes(it.content);
@@ -1185,6 +1216,7 @@
     editingId = id;
     $("edit-content").value = it.content;
     $("edit-book").value = it.book_title || "";
+    $("edit-author").value = authorOf(it.book_title);
     $("edit-page").value = it.page || "";
     $("edit-memo").value = it.memo || "";
     $("edit-date").textContent = fmtLongDate(new Date(it.created_at)) + "에 담음";
@@ -1215,14 +1247,37 @@
     };
     box.replaceChildren(mk(null, "자동으로 정하기"), ...BOOK_COLORS.map(([hex, name]) => mk(hex, name)));
   }
-  $("edit-book").addEventListener("input", renderSwatches);
+  $("edit-book").addEventListener("input", () => {
+    renderSwatches();
+    const known = authorOf($("edit-book").value);
+    if (known) $("edit-author").value = known; // 이미 아는 책이면 작가도 맞춰요
+  });
+
+  async function setBookAuthor(title, author) {
+    title = (title || "").trim(); author = (author || "").trim();
+    if (!title) return true;
+    const prev = bookAuthor.get(title) || "";
+    if (prev === author) return true;
+    const apply = (v) => { if (v) bookAuthor.set(title, v); else bookAuthor.delete(title); saveBooksCache(); render(); };
+    apply(author);
+    const { error } = await sb.from("book_colors")
+      .upsert({ user_id: user.id, book_title: title, author: author || null }, { onConflict: "user_id,book_title" });
+    if (error) {
+      apply(prev);
+      toast(/author|null value|schema cache|does not exist/i.test(error.message || "")
+        ? "작가를 저장하려면 Supabase에서 schema.sql을 다시 실행해 주세요."
+        : "작가를 저장하지 못했어요. 인터넷 연결을 확인해 주세요.");
+      return false;
+    }
+    return true;
+  }
 
   async function setBookColor(title, hex) {
     const prev = bookCustom.get(title) || null;
     if (prev === hex) return;
     const apply = (v) => {
       if (v) bookCustom.set(title, v); else bookCustom.delete(title);
-      store.set("colors:" + user.id, [...bookCustom].map(([book_title, color]) => ({ book_title, color })));
+      saveBooksCache();
       render();
       renderSwatches();
     };
@@ -1261,9 +1316,11 @@
     btn.disabled = false;
     if (error) { toast("저장하지 못했어요. 인터넷 연결을 확인해 주세요."); return; }
     upsertLocal(data);
+    const newBook = $("edit-book").value.trim();
+    const authorOk = newBook ? await setBookAuthor(newBook, $("edit-author").value) : true;
     render();
     dialog.close();
-    toast("고쳤어요");
+    if (authorOk) toast("고쳤어요"); // 작가 저장에 실패했으면 그 안내를 남겨둬요
   });
 
   $("edit-delete").addEventListener("click", async () => {

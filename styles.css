@@ -370,6 +370,7 @@ textarea { resize: vertical; }
   border-radius: 8px;
   background: var(--book, var(--ink));
   color: var(--book-ink, var(--paper));
+  text-shadow: var(--book-shadow, none);
   font-size: .78rem;
   font-weight: 600;
   letter-spacing: .04em;
@@ -470,6 +471,7 @@ textarea { resize: vertical; }
   background: var(--book, var(--accent));
   border-color: var(--book, var(--accent));
   color: var(--book-ink, var(--accent-ink));
+  text-shadow: var(--book-shadow, none);
 }
 .chip[aria-selected="true"]::before { background: currentColor; opacity: .8; }
 .chip[aria-selected="true"] .n { color: inherit; opacity: .75; }
@@ -503,10 +505,12 @@ textarea { resize: vertical; }
   border-radius: 8px;
   background: var(--book, var(--paper-sunk));
   color: var(--book-ink, var(--ink-soft));
+  text-shadow: var(--book-shadow, none);
   font-size: .8rem;
 }
 .sentence-book { font-family: var(--serif); font-weight: 600; font-size: .86rem; letter-spacing: -0.01em; overflow-wrap: anywhere; }
-.sentence-date { opacity: .8; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sentence-author { font-weight: 400; opacity: .92; }
+.sentence-date { opacity: .85; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sentence-body { padding: 18px 14px 12px; }
 
 .sentence-text {

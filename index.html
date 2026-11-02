@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=17">
+  <link rel="stylesheet" href="styles.css?v=18">
 </head>
 <body>
   <div id="app">
@@ -111,10 +111,14 @@
           <button id="breaks-join-likely" class="btn link small" type="button">표시된 곳 모두 붙이기</button>
         </div>
 
+        <label class="field">
+          <span>책 제목<i id="compose-book-swatch" class="swatch" aria-hidden="true"></i></span>
+          <input id="compose-book" type="text" list="book-list" autocomplete="off" enterkeyhint="next" placeholder="예) 데미안">
+        </label>
         <div class="compose-meta">
           <label class="field grow">
-            <span>책 제목<i id="compose-book-swatch" class="swatch" aria-hidden="true"></i></span>
-            <input id="compose-book" type="text" list="book-list" autocomplete="off" enterkeyhint="next" placeholder="예) 데미안">
+            <span>작가</span>
+            <input id="compose-author" type="text" list="author-list" autocomplete="off" enterkeyhint="next" placeholder="예) 헤르만 헤세">
           </label>
           <label class="field page-field">
             <span>페이지</span>
@@ -122,6 +126,7 @@
           </label>
         </div>
         <datalist id="book-list"></datalist>
+        <datalist id="author-list"></datalist>
 
         <button id="compose-submit" class="btn primary block" type="submit">문장 담기</button>
 
@@ -139,7 +144,7 @@
 
       <!-- 검색 / 책 필터 -->
       <div class="list-tools">
-        <input id="search" class="search" type="search" placeholder="문장이나 책 제목으로 찾기" autocomplete="off" enterkeyhint="search">
+        <input id="search" class="search" type="search" placeholder="문장, 책 제목, 작가로 찾기" autocomplete="off" enterkeyhint="search">
         <div id="book-chips" class="chips" role="tablist" aria-label="책별 보기"></div>
       </div>
 
@@ -192,10 +197,14 @@
         <span id="edit-date" class="muted small"></span>
       </div>
       <textarea id="edit-content" class="sentence-input" rows="5" required></textarea>
+      <label class="field">
+        <span>책 제목</span>
+        <input id="edit-book" type="text" list="book-list" autocomplete="off">
+      </label>
       <div class="compose-meta">
         <label class="field grow">
-          <span>책 제목</span>
-          <input id="edit-book" type="text" list="book-list" autocomplete="off">
+          <span>작가 <span class="muted">(같은 책 문장 모두에 적용)</span></span>
+          <input id="edit-author" type="text" list="author-list" autocomplete="off">
         </label>
         <label class="field page-field">
           <span>페이지</span>
@@ -256,8 +265,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="config.js?v=17"></script>
+  <script src="config.js?v=18"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>

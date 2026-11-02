@@ -104,3 +104,8 @@ begin
     alter publication supabase_realtime add table public.book_colors;
   end if;
 end $$;
+
+-- ───────────────────────────────────────────────
+-- 책 정보: 작가 이름도 책마다 한 번만 저장해요 (책 색과 같은 표)
+alter table public.book_colors add column if not exists author text;
+alter table public.book_colors alter column color drop not null;  -- 색은 안 고르고 작가만 적어도 되게
