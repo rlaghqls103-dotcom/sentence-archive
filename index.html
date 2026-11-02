@@ -20,7 +20,7 @@
   <!-- 문장 글꼴: 마루부리 (네이버, OFL 무료 글꼴) -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@kfonts/maruburi@0.1.0/index.css">
-  <link rel="stylesheet" href="styles.css?v=21">
+  <link rel="stylesheet" href="styles.css?v=22">
 </head>
 <body>
   <div id="app">
@@ -69,6 +69,8 @@
         </div>
       </header>
 
+      <!-- ===== 문장 탭 ===== -->
+      <div id="tab-sentences" class="tab-panel" role="tabpanel" aria-label="문장">
       <!-- 오늘의 문장: 모아둔 문장 중 하루에 하나 (PC·폰 같은 문장) -->
       <section id="today-card" class="today-card" hidden aria-label="오늘의 문장">
         <div class="today-band">
@@ -164,6 +166,23 @@
           <button id="export-csv" class="btn ghost small" type="button">엑셀로 내보내기</button>
         </div>
       </div>
+      </div>
+
+      <!-- ===== 감상문 탭: 책마다 한 편 (문장·오늘의 문장과 따로 관리) ===== -->
+      <div id="tab-notes" class="tab-panel" role="tabpanel" aria-label="감상문" hidden>
+        <div class="notes-head">
+          <h2>감상문</h2>
+          <p class="muted small">읽은 책마다 짧은 감상을 남겨요. 오늘의 문장에는 나오지 않아요.</p>
+        </div>
+        <p id="notes-setup" class="notes-setup" hidden>감상문을 저장하려면 Supabase <b>SQL Editor</b>에서 <code>schema.sql</code>을 다시 실행해 주세요.</p>
+        <ul id="note-list" class="sentence-list note-list"></ul>
+        <div id="notes-empty" class="empty" hidden>
+          <div class="shelf" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <p>아직 책이 없어요.<br>문장을 담거나 아래 버튼으로 감상문을 써 보세요.</p>
+        </div>
+        <button id="note-new" class="btn ghost block note-new" type="button">+ 다른 책 감상문 쓰기</button>
+      </div>
+
       <footer class="app-footer">
         <label class="font-pick">글꼴
           <select id="font-choice" aria-label="문장 글꼴">
@@ -177,23 +196,77 @@
     </section>
   </div>
 
+  <!-- 아래 탭바 -->
+  <nav id="tabbar" class="tabbar" role="tablist" aria-label="화면 고르기" hidden>
+    <button class="tab-btn" type="button" role="tab" data-tab="sentences" aria-selected="true" aria-controls="tab-sentences">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17.5c2.4-.6 3.6-2.4 3.6-5.2V7.5H4.5v5h4"/><path d="M14 17.5c2.4-.6 3.6-2.4 3.6-5.2V7.5h-4.1v5h4"/></svg>
+      <span>문장</span>
+    </button>
+    <button class="tab-btn" type="button" role="tab" data-tab="notes" aria-selected="false" aria-controls="tab-notes">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 19.5h4l10-10a2.1 2.1 0 0 0-3-3l-10 10z"/><path d="M13.5 8.5l3 3"/><path d="M12 19.5h7.5"/></svg>
+      <span>감상문</span>
+    </button>
+  </nav>
+
   <!-- 문장 보기 창: 전체 문장 + [편집하기] -->
-  <dialog id="view-dialog" class="sheet">
-    <div class="paper-card view-card">
-      <div id="view-band" class="sentence-band">
-        <span id="view-book" class="sentence-book"></span>
-        <time id="view-date" class="sentence-date"></time>
+  <dialog id="view-dialog" class="fullview" aria-label="문장 보기">
+    <div class="full-inner">
+      <div class="grabber" aria-hidden="true"></div>
+      <div class="full-scroll">
+        <div class="full-content">
+          <div id="view-band" class="sentence-band">
+            <span id="view-book" class="sentence-book"></span>
+            <time id="view-date" class="sentence-date"></time>
+          </div>
+          <div class="view-body">
+            <p id="view-text" class="view-text"></p>
+            <p id="view-memo" class="sentence-memo" hidden></p>
+          </div>
+        </div>
       </div>
-      <div class="view-body">
-        <p id="view-text" class="view-text"></p>
-        <p id="view-memo" class="sentence-memo" hidden></p>
-      </div>
-      <div class="sheet-actions">
+      <div class="full-actions">
         <button id="view-close" class="btn ghost" type="button">닫기</button>
         <span class="spacer"></span>
         <button id="view-edit" class="btn primary" type="button">편집하기</button>
       </div>
     </div>
+  </dialog>
+
+  <!-- 감상문 쓰기 창 -->
+  <dialog id="note-dialog" class="fullview" aria-label="감상문 쓰기">
+    <form id="note-form" class="full-inner" novalidate>
+      <div class="grabber" aria-hidden="true"></div>
+      <div class="full-scroll">
+        <div class="full-content">
+          <div id="note-band" class="sentence-band">
+            <span id="note-book" class="sentence-book"></span>
+            <span class="sentence-date">감상문</span>
+          </div>
+          <div id="note-new-fields" class="note-new-fields" hidden>
+            <label class="field">
+              <span>책 제목</span>
+              <input id="note-title" type="text" list="book-list" autocomplete="off" placeholder="예) 데미안">
+            </label>
+            <label class="field">
+              <span>작가 <span class="muted">(선택)</span></span>
+              <input id="note-author" type="text" list="author-list" autocomplete="off" placeholder="예) 헤르만 헤세">
+            </label>
+          </div>
+          <label class="field note-date-field">
+            <span>다 읽은 날 <span class="muted">(선택)</span></span>
+            <input id="note-finished" type="date">
+          </label>
+          <textarea id="note-body" class="note-body" rows="10" placeholder="이 책을 읽고 남은 생각을 자유롭게 적어 보세요."></textarea>
+          <p id="note-meta" class="muted small note-meta"></p>
+        </div>
+      </div>
+      <div class="full-actions">
+        <button id="note-close" class="btn ghost" type="button">닫기</button>
+        <button id="note-delete" class="btn danger" type="button">지우기</button>
+        <span class="spacer"></span>
+        <button id="note-save" class="btn primary" type="submit">저장</button>
+      </div>
+    </form>
   </dialog>
 
   <!-- 수정 창 -->
@@ -272,8 +345,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="config.js?v=21"></script>
+  <script src="config.js?v=22"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>

@@ -23,6 +23,7 @@
   --serif: "마루 부리", "MaruBuri", "Nanum Myeongjo", "AppleMyungjo", "Batang", serif;
   --sans: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", system-ui, sans-serif;
   --radius: 14px;
+  --tabbar-h: 0px;          /* 아래 탭바가 보일 때 56px */
   color-scheme: light;
 }
 
@@ -116,7 +117,7 @@ body {
   padding:
     calc(env(safe-area-inset-top) + 16px)
     calc(env(safe-area-inset-right) + 16px)
-    calc(env(safe-area-inset-bottom) + 40px)
+    calc(env(safe-area-inset-bottom) + 40px + var(--tabbar-h))
     calc(env(safe-area-inset-left) + 16px);
 }
 
@@ -613,20 +614,142 @@ dialog.sheet .paper-card { padding: 18px; }
 }
 .swatch-btn.auto[aria-checked="true"] { color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
 
-/* 문장 보기 창 */
-.view-card { padding: 10px !important; max-height: calc(100dvh - 24px); overflow-y: auto; }
-.view-body { padding: 22px 12px 8px; }
+/* ---------- 화면 전체 창 (문장 보기 · 감상문 쓰기) ---------- */
+dialog.fullview {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--paper);
+  color: var(--ink);
+  overflow: hidden;
+}
+dialog.fullview::backdrop { background: transparent; }
+.full-inner { display: flex; flex-direction: column; height: 100%; margin: 0; }
+.grabber {
+  flex: none;
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+  margin: calc(env(safe-area-inset-top) + 8px) auto 8px;
+}
+.full-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.full-content {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 4px calc(env(safe-area-inset-right) + 16px) 28px calc(env(safe-area-inset-left) + 16px);
+}
+.full-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px max(16px, calc((100vw - 680px) / 2 + 16px)) calc(env(safe-area-inset-bottom) + 12px);
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+.view-body { padding: 26px 6px 8px; }
 .view-text {
   margin: 0;
   font-family: var(--serif);
-  font-size: 1.25rem;
-  line-height: 1.85;
+  font-size: 1.3rem;
+  line-height: 1.9;
   letter-spacing: -0.015em;
   white-space: pre-wrap;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
-#view-dialog .sheet-actions { padding: 0 6px 4px; }
+#view-memo { margin-top: 22px; font-size: .95rem; }
+
+/* ---------- 아래 탭바 ---------- */
+:root.has-tabbar { --tabbar-h: 56px; }
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.tab-btn {
+  flex: 1;
+  max-width: 220px;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-faint);
+  font: inherit;
+  font-size: .72rem;
+  letter-spacing: .02em;
+  cursor: pointer;
+}
+.tab-btn .icon { width: 24px; height: 24px; }
+.tab-btn[aria-selected="true"] { color: var(--ink); font-weight: 600; }
+
+/* ---------- 감상문 ---------- */
+.notes-head { margin: 4px 2px 16px; }
+.notes-head h2 { font-family: var(--serif); font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 2px; }
+.notes-setup {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff6d6;
+  color: #5c4500;
+  font-size: .86rem;
+}
+.note-snippet {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.0625rem;
+  line-height: 1.85;
+  letter-spacing: -0.01em;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.note-snippet.placeholder { color: var(--ink-faint); font-size: .95rem; }
+.note-foot { margin: 10px 0 0; font-size: .8rem; color: var(--ink-faint); }
+.note-new { margin-top: 18px; }
+.note-new-fields { margin-top: 14px; }
+.note-date-field { margin-top: 16px; }
+.note-date-field input { max-width: 220px; min-height: 44px; }
+.note-body {
+  width: 100%;
+  min-height: 42vh;
+  margin-top: 14px;
+  font-family: var(--serif);
+  font-size: 1.1rem;
+  line-height: 1.9;
+  letter-spacing: -0.01em;
+  word-break: keep-all;
+}
+.note-meta { margin: 8px 2px 0; }
 
 /* 맨 아래 작은 로그아웃 */
 .app-footer { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 28px; }
@@ -760,7 +883,7 @@ dialog.photo-dialog::backdrop { background: #111111; }
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom) + 24px);
+  bottom: calc(env(safe-area-inset-bottom) + 24px + var(--tabbar-h));
   transform: translate(-50%, 20px);
   background: var(--ink);
   color: var(--paper);

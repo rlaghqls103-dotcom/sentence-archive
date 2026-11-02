@@ -109,3 +109,31 @@ end $$;
 -- 책 정보: 작가 이름도 책마다 한 번만 저장해요 (책 색과 같은 표)
 alter table public.book_colors add column if not exists author text;
 alter table public.book_colors alter column color drop not null;  -- 색은 안 고르고 작가만 적어도 되게
+
+-- ───────────────────────────────────────────────
+-- 감상문: 읽은 책마다 한 편 (문장과 따로 저장, 오늘의 문장에는 나오지 않아요)
+create table if not exists public.book_notes (
+  user_id     uuid not null default auth.uid() references auth.users on delete cascade,
+  book_title  text not null,
+  body        text,
+  finished_on date,                 -- 다 읽은 날 (선택)
+  updated_at  timestamptz not null default now(),
+  primary key (user_id, book_title)
+);
+alter table public.book_notes enable row level security;
+
+drop policy if exists "own book notes" on public.book_notes;
+create policy "own book notes" on public.book_notes
+  for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'book_notes'
+  ) then
+    alter publication supabase_realtime add table public.book_notes;
+  end if;
+end $$;

@@ -91,10 +91,12 @@
   const views = { setup: $("view-setup"), auth: $("view-auth"), main: $("view-main") };
   function show(name) {
     for (const key of Object.keys(views)) views[key].hidden = key !== name;
+    $("tabbar").hidden = name !== "main";
+    document.documentElement.classList.toggle("has-tabbar", name === "main");
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v21";
+  const APP_VERSION = "v22";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -138,6 +140,10 @@
   let query = "";
   let bookFilter = null;
   let channel = null;
+  // 감상문: 책 제목 → { body, finished_on, updated_at } (문장과 따로 관리, 오늘의 문장에는 안 나와요)
+  let notes = new Map();
+  let notesMissing = false; // book_notes 표가 아직 없으면(SQL 실행 전) 안내
+  let activeTab = "sentences";
   let lastLoad = 0;
   let lastShown = [];
   let todayOffset = 0; // [다른 문장]을 누른 만큼
@@ -338,6 +344,8 @@
     bookFilter = null;
     query = "";
     $("sentence-list").replaceChildren();
+    notes = new Map();
+    $("note-list").replaceChildren();
     setAuthMode(false);
     show("auth");
   }
@@ -347,6 +355,8 @@
     applyFontChoice();
     items = store.get("cache:" + user.id, []);
     loadBookRows(store.get("colors:" + user.id, []));
+    loadNoteRows(store.get("notes:" + user.id, []));
+    setTab(store.get("tab", "sentences"), { scroll: false });
     const lastBook = store.get("lastBook", "");
     if (lastBook && !$("compose-book").value) $("compose-book").value = lastBook;
     paintBook($("compose-book-swatch"), $("compose-book").value);
@@ -386,6 +396,10 @@
     let { data: books, error: booksError } = await sb.from("book_colors").select("book_title,color,author");
     if (booksError) ({ data: books, error: booksError } = await sb.from("book_colors").select("book_title,color"));
     if (!booksError && books) { loadBookRows(books); saveBooksCache(); }
+    // 감상문 (표가 아직 없으면 감상문 탭에 안내만 해요)
+    const { data: noteRows, error: notesError } = await sb.from("book_notes").select("book_title,body,finished_on,updated_at");
+    notesMissing = !!notesError && isMissingTable(notesError);
+    if (!notesError && noteRows) { loadNoteRows(noteRows); saveNotesCache(); }
     render();
     setSync(channel && channel.state === "joined" ? "live" : "idle");
   }
@@ -425,6 +439,16 @@
         saveBooksCache();
         render();
         if (dialog.open) renderSwatches();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "book_notes" }, (payload) => {
+        if (payload.eventType === "DELETE") {
+          if (payload.old && payload.old.book_title) notes.delete(payload.old.book_title);
+        } else if (payload.new && payload.new.user_id === user.id) {
+          const r = payload.new;
+          notes.set(r.book_title, { body: r.body || "", finished_on: r.finished_on || null, updated_at: r.updated_at || null });
+        }
+        saveNotesCache();
+        render();
       })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") setSync("live");
@@ -525,6 +549,13 @@
     for (let k = items.length - 1; k >= 0; k--) {
       const t = (items[k].book_title || "").trim();
       if (!t || map.has(t) || bookCustom.has(t)) continue;
+      const i = freeIndex(t, used);
+      used.add(i);
+      map.set(t, i);
+    }
+    // 문장 없이 감상문만 있는 책도 겹치지 않는 색으로
+    for (const t of notes.keys()) {
+      if (map.has(t) || bookCustom.has(t)) continue;
       const i = freeIndex(t, used);
       used.add(i);
       map.set(t, i);
@@ -641,8 +672,8 @@
     if (bookFilter && !books.some(([t]) => t === bookFilter)) bookFilter = null;
 
     $("count-line").textContent = items.length
-      ? `문장 ${items.length}개 · 책 ${books.length}권`
-      : "첫 문장을 기다리고 있어요";
+      ? `문장 ${items.length}개 · 책 ${books.length}권` + (notes.size ? ` · 감상문 ${notes.size}편` : "")
+      : (notes.size ? `감상문 ${notes.size}편` : "첫 문장을 기다리고 있어요");
 
     // 작가 자동완성
     $("author-list").replaceChildren(...[...new Set(bookAuthor.values())].map((a) => Object.assign(document.createElement("option"), { value: a })));
@@ -688,6 +719,7 @@
     renderToday();
     $("export-bar").hidden = shown.length === 0;
     $("export-count").textContent = (bookFilter || q) ? `지금 보이는 문장 ${shown.length}개` : `전체 문장 ${shown.length}개`;
+    renderNotes();
   }
 
   function card(it, q) {
@@ -730,8 +762,8 @@
     }
 
     li.append(band, body);
-    li.addEventListener("click", () => openView(it.id));
-    li.addEventListener("keydown", (e) => { if (e.key === "Enter") openView(it.id); });
+    li.addEventListener("click", () => openView(it.id, li));
+    li.addEventListener("keydown", (e) => { if (e.key === "Enter") openView(it.id, li); });
     return li;
   }
 
@@ -1202,11 +1234,125 @@
     }
   });
 
+  // ---------- 화면 전체 창: 열기·닫기 애니메이션, 아래로 쓸어 닫기 ----------
+  // 누른 카드 자리에서 화면 전체로 펼쳐지고, 닫을 때는 아래로 내려가요.
+  const reducedMotion = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : { matches: false };
+  const EASE_OUT = "cubic-bezier(.2,.8,.2,1)";
+  const canAnimate = (el) => !reducedMotion.matches && typeof el.animate === "function";
+
+  function openFull(dlg, fromEl) {
+    dlg.getAnimations && dlg.getAnimations().forEach((a) => a.cancel());
+    delete dlg.dataset.closing;
+    dlg.style.transform = "";
+    if (!dlg.open) dlg.showModal();
+    dlg.querySelector(".full-scroll").scrollTop = 0; // 긴 글도 처음부터
+    if (!canAnimate(dlg)) return;
+    const W = window.innerWidth, H = dlg.clientHeight || window.innerHeight;
+    let from = `inset(${H * 0.35}px 8% ${H * 0.35}px 8% round 14px)`;
+    if (fromEl) {
+      const r = fromEl.getBoundingClientRect();
+      const top = Math.min(Math.max(0, r.top), H - 40), bottom = Math.min(Math.max(0, H - r.bottom), H - top - 40);
+      from = `inset(${top}px ${Math.max(0, W - r.right)}px ${bottom}px ${Math.max(0, r.left)}px round 14px)`;
+    }
+    dlg.animate([{ clipPath: from }, { clipPath: "inset(0px 0px 0px 0px round 0px)" }], { duration: 340, easing: EASE_OUT });
+    const content = dlg.querySelector(".full-content");
+    if (content) content.animate([{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }],
+      { duration: 300, delay: 70, easing: EASE_OUT, fill: "backwards" });
+  }
+
+  // from: 손가락으로 이미 끌어내린 거리(px). 거기서부터 마저 내려가요.
+  function closeFull(dlg, { instant = false, from = 0 } = {}) {
+    if (!dlg.open || dlg.dataset.closing) return;
+    const finish = () => {
+      dlg.close();
+      dlg.style.transform = "";
+      dlg.getAnimations && dlg.getAnimations().forEach((a) => a.cancel());
+      delete dlg.dataset.closing;
+    };
+    if (instant || !canAnimate(dlg)) { finish(); return; }
+    dlg.dataset.closing = "1";
+    const H = dlg.clientHeight || window.innerHeight;
+    const left = Math.max(0, 1 - from / H);
+    const anim = dlg.animate([{ transform: `translateY(${from}px)` }, { transform: `translateY(${H}px)` }],
+      { duration: Math.max(140, 280 * left), easing: "cubic-bezier(.3,0,.8,.4)", fill: "forwards" });
+    anim.onfinish = finish;
+    anim.oncancel = () => delete dlg.dataset.closing;
+  }
+
+  // 위에서 아래로 쓸어내리면 닫혀요. 글이 길어 스크롤을 내린 상태에서는 먼저 스크롤이 올라가요.
+  function attachSwipe(dlg, onClose) {
+    const scroller = dlg.querySelector(".full-scroll");
+    let startY = null, startX = 0, dy = 0, dragging = false, decided = false, lastY = 0, lastT = 0, vel = 0, fromScroller = false;
+    const selecting = () => { const s = window.getSelection && window.getSelection(); return !!s && !s.isCollapsed; };
+    const begin = (x, y, target) => {
+      if (dlg.dataset.closing || target.closest("textarea, input, select")) { startY = null; return; }
+      startY = y; startX = x; dy = 0; dragging = false; decided = false; vel = 0;
+      lastY = y; lastT = performance.now();
+      fromScroller = scroller.contains(target);
+    };
+    const move = (x, y, e) => {
+      if (startY === null) return;
+      if (!decided) {
+        const ddy = y - startY, ddx = x - startX;
+        if (Math.abs(ddy) < 2 && Math.abs(ddx) < 2) return;
+        decided = true;
+        const atTop = !fromScroller || scroller.scrollTop <= 0;
+        if (ddy > 0 && Math.abs(ddy) >= Math.abs(ddx) && atTop && !selecting()) {
+          dragging = true;
+          startY = y;
+        } else { startY = null; return; }
+      }
+      if (!dragging) return;
+      if (e.cancelable) e.preventDefault(); // 화면이 대신 스크롤되지 않게
+      const now = performance.now();
+      vel = (y - lastY) / Math.max(1, now - lastT);
+      lastY = y; lastT = now;
+      dy = Math.max(0, y - startY);
+      dlg.style.transform = `translateY(${dy}px)`;
+    };
+    const end = () => {
+      if (startY === null) return;
+      const was = dragging;
+      startY = null; dragging = false;
+      if (!was) return;
+      if (dy > 110 || (vel > 0.5 && dy > 20)) {
+        onClose(dy);
+        if (dlg.open && !dlg.dataset.closing) snapBack(); // 닫지 않기로 했으면(저장 안 한 글) 제자리로
+      } else snapBack();
+    };
+    const snapBack = () => {
+      const at = dy;
+      dlg.style.transform = "";
+      if (at > 0 && canAnimate(dlg)) dlg.animate([{ transform: `translateY(${at}px)` }, { transform: "translateY(0)" }], { duration: 200, easing: EASE_OUT });
+    };
+    dlg.addEventListener("touchstart", (e) => {
+      if (e.touches.length !== 1) { startY = null; return; }
+      begin(e.touches[0].clientX, e.touches[0].clientY, e.target);
+    }, { passive: true });
+    dlg.addEventListener("touchmove", (e) => {
+      if (e.touches.length !== 1) return;
+      move(e.touches[0].clientX, e.touches[0].clientY, e);
+    }, { passive: false });
+    dlg.addEventListener("touchend", end);
+    dlg.addEventListener("touchcancel", end);
+    // PC: 맨 위 손잡이나 색 띠를 마우스로 끌어내려도 닫혀요
+    dlg.addEventListener("pointerdown", (e) => {
+      if (e.pointerType !== "mouse" || e.button !== 0 || !e.target.closest(".grabber, .sentence-band")) return;
+      begin(e.clientX, e.clientY, e.target);
+      const mv = (ev) => move(ev.clientX, ev.clientY, ev);
+      const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); end(); };
+      window.addEventListener("pointermove", mv);
+      window.addEventListener("pointerup", up);
+    });
+    // Esc 키도 애니메이션으로 닫기
+    dlg.addEventListener("cancel", (e) => { e.preventDefault(); onClose(0); });
+  }
+
   // ---------- 문장 보기 ----------
-  // 문장을 누르면 먼저 전체 문장을 크게 보여주고, [편집하기]를 눌러야 고치기 창이 열려요.
+  // 문장을 누르면 화면 전체로 크게 보여주고, [편집하기]를 눌러야 고치기 창이 열려요.
   const viewDialog = $("view-dialog");
   let viewingId = null;
-  function openView(id) {
+  function openView(id, fromEl) {
     const it = items.find((x) => x.id === id);
     if (!it) return;
     viewingId = id;
@@ -1219,21 +1365,200 @@
     $("view-memo").hidden = !it.memo;
     $("view-memo").textContent = it.memo ? smartQuotes(it.memo) : "";
     paintBook($("view-memo"), it.book_title);
-    viewDialog.showModal();
-    viewDialog.querySelector(".view-card").scrollTop = 0; // 긴 문장도 처음부터 보이게
+    openFull(viewDialog, fromEl);
   }
-  $("view-close").addEventListener("click", () => viewDialog.close());
-  viewDialog.addEventListener("click", (e) => { if (e.target === viewDialog) viewDialog.close(); });
+  const closeView = (from = 0) => closeFull(viewDialog, { from });
+  attachSwipe(viewDialog, closeView);
+  $("view-close").addEventListener("click", () => closeView());
   $("view-edit").addEventListener("click", () => {
     const id = viewingId;
-    viewDialog.close();
+    closeFull(viewDialog, { instant: true });
     if (id) openEdit(id);
+  });
+
+  // ---------- 아래 탭바 ----------
+  function setTab(name, { scroll = true } = {}) {
+    activeTab = name === "notes" ? "notes" : "sentences";
+    store.set("tab", activeTab);
+    $("tab-sentences").hidden = activeTab !== "sentences";
+    $("tab-notes").hidden = activeTab !== "notes";
+    document.querySelectorAll(".tab-btn").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === activeTab)));
+    if (scroll) window.scrollTo(0, 0);
+  }
+  document.querySelectorAll(".tab-btn").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+
+  // ---------- 감상문 ----------
+  // 책마다 한 편. book_notes 표에 따로 저장하고(PC·아이폰 함께), 오늘의 문장·내보내기·검색에는 섞이지 않아요.
+  function isMissingTable(error) { return /book_notes|schema cache|does not exist|relation/i.test((error && error.message) || ""); }
+  function loadNoteRows(rows) {
+    notes = new Map((rows || [])
+      .filter((r) => r && typeof r.book_title === "string" && (r.body != null || r.finished_on != null))
+      .map((r) => [r.book_title, { body: r.body || "", finished_on: r.finished_on || null, updated_at: r.updated_at || null }]));
+  }
+  function saveNotesCache() {
+    if (user) store.set("notes:" + user.id, [...notes].map(([book_title, n]) => ({ book_title, ...n })));
+  }
+  function fmtDay(ymd) { const [y, m, d] = String(ymd).split("-"); return `${y}.${m}.${d}`; }
+
+  function renderNotes() {
+    const counts = new Map(bookStats());
+    const written = [...notes.entries()]
+      .sort((a, b) => ((b[1].updated_at || "") > (a[1].updated_at || "") ? 1 : -1))
+      .map(([t]) => t);
+    const unwritten = [...counts.entries()].filter(([t]) => !notes.has(t)).sort((a, b) => b[1] - a[1]).map(([t]) => t);
+    const titles = [...written, ...unwritten];
+    $("note-list").replaceChildren(...titles.map((t) => noteCard(t, counts.get(t) || 0)));
+    $("notes-empty").hidden = titles.length > 0;
+    $("notes-setup").hidden = !notesMissing;
+  }
+
+  function noteCard(title, count) {
+    const n = notes.get(title);
+    const li = document.createElement("li");
+    li.className = "sentence note-card";
+    li.tabIndex = 0;
+    li.dataset.book = title;
+    paintBook(li, title);
+    const band = document.createElement("div");
+    band.className = "sentence-band";
+    const book = document.createElement("span");
+    book.className = "sentence-book";
+    book.append(`『${title}』`);
+    const au = authorOf(title);
+    if (au) { const a = document.createElement("span"); a.className = "sentence-author"; a.textContent = au; book.append(" ", a); }
+    band.append(book);
+    if (n && n.finished_on) {
+      const d = document.createElement("time");
+      d.className = "sentence-date";
+      d.dateTime = n.finished_on;
+      d.textContent = fmtDay(n.finished_on) + " 완독";
+      band.append(d);
+    }
+    const body = document.createElement("div");
+    body.className = "sentence-body";
+    const p = document.createElement("p");
+    p.className = "note-snippet";
+    if (n && n.body) p.textContent = n.body;
+    else { p.classList.add("placeholder"); p.textContent = "아직 감상문이 없어요 · 눌러서 쓰기"; }
+    const foot = document.createElement("p");
+    foot.className = "note-foot";
+    foot.textContent = [count ? `문장 ${count}개` : "", n && n.updated_at ? `${fmtDate(n.updated_at)} 고침` : ""].filter(Boolean).join(" · ");
+    body.append(p);
+    if (foot.textContent) body.append(foot);
+    li.append(band, body);
+    li.addEventListener("click", () => openNote(title, li));
+    li.addEventListener("keydown", (e) => { if (e.key === "Enter") openNote(title, li); });
+    return li;
+  }
+
+  const noteDialog = $("note-dialog");
+  let noteTitle = null;     // 고르고 연 책 (새 책이면 null)
+  let noteSnapshot = "";    // 연 순간의 내용 (바뀌었는지 비교)
+  const noteDraftKey = () => "noteDraft:" + (noteTitle || "");
+  const noteState = () => JSON.stringify([$("note-title").value.trim(), $("note-author").value.trim(), $("note-finished").value, $("note-body").value]);
+  function currentNoteTitle() { return noteTitle || $("note-title").value.trim(); }
+  function paintNoteBand() {
+    const t = currentNoteTitle();
+    const au = noteTitle ? authorOf(noteTitle) : ($("note-author").value.trim() || authorOf(t));
+    paintBook($("note-band"), t);
+    $("note-book").textContent = t ? `『${t}』${au ? " " + au : ""}` : "새 감상문";
+  }
+  function openNote(title, fromEl) {
+    noteTitle = title || null;
+    const n = noteTitle ? notes.get(noteTitle) : null;
+    $("note-new-fields").hidden = !!noteTitle;
+    $("note-title").value = "";
+    $("note-author").value = "";
+    $("note-finished").value = (n && n.finished_on) || "";
+    $("note-body").value = (n && n.body) || "";
+    $("note-delete").hidden = !n;
+    $("note-meta").textContent = n && n.updated_at ? fmtLongDate(new Date(n.updated_at)) + "에 고침" : "";
+    noteSnapshot = noteState();
+    // 쓰다 만 글이 있으면 이어서
+    const draft = store.get(noteDraftKey(), null);
+    if (Array.isArray(draft) && JSON.stringify(draft) !== noteSnapshot) {
+      [$("note-title").value, $("note-author").value, $("note-finished").value, $("note-body").value] = draft;
+      setTimeout(() => toast("쓰다 만 글을 불러왔어요"), 350);
+    }
+    paintNoteBand();
+    openFull(noteDialog, fromEl);
+  }
+  function closeNote(from = 0) {
+    if (noteState() !== noteSnapshot) {
+      if (!confirm("저장하지 않고 닫을까요? 쓰던 글은 사라져요.")) return;
+      store.remove(noteDraftKey());
+    }
+    closeFull(noteDialog, { from });
+  }
+  attachSwipe(noteDialog, closeNote);
+  $("note-close").addEventListener("click", () => closeNote());
+  $("note-new").addEventListener("click", () => openNote(null, $("note-new")));
+  $("note-title").addEventListener("input", paintNoteBand);
+  $("note-author").addEventListener("input", paintNoteBand);
+  $("note-form").addEventListener("input", () => {
+    const s = noteState();
+    if (s === noteSnapshot) store.remove(noteDraftKey()); else store.set(noteDraftKey(), JSON.parse(s));
+  });
+
+  $("note-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const title = currentNoteTitle();
+    if (!title) { toast("책 제목을 적어 주세요"); $("note-title").focus(); return; }
+    const body = smartQuotes($("note-body").value.trim());
+    const finished = $("note-finished").value || null;
+    if (!body && !finished) { toast("감상문을 적어 주세요"); $("note-body").focus(); return; }
+    if (!noteTitle && notes.has(title) && !confirm(`『${title}』에는 이미 감상문이 있어요. 새 글로 바꿀까요?`)) return;
+    const prev = notes.get(title);
+    const row = { body, finished_on: finished, updated_at: new Date().toISOString() };
+    notes.set(title, row);
+    saveNotesCache();
+    render();
+    const btn = $("note-save");
+    btn.disabled = true;
+    const { error } = await sb.from("book_notes")
+      .upsert({ user_id: user.id, book_title: title, ...row }, { onConflict: "user_id,book_title" });
+    btn.disabled = false;
+    if (error) {
+      if (prev) notes.set(title, prev); else notes.delete(title);
+      saveNotesCache();
+      if (isMissingTable(error)) notesMissing = true;
+      render();
+      toast(isMissingTable(error)
+        ? "감상문을 저장하려면 Supabase에서 schema.sql을 다시 실행해 주세요."
+        : "저장하지 못했어요. 인터넷 연결을 확인해 주세요.");
+      return;
+    }
+    notesMissing = false;
+    const draftKey = noteDraftKey();
+    if (!noteTitle) {
+      const au = $("note-author").value.trim();
+      if (au && au !== authorOf(title)) await setBookAuthor(title, au);
+    }
+    store.remove(draftKey);
+    noteSnapshot = noteState();
+    render();
+    closeFull(noteDialog);
+    toast("감상문을 저장했어요");
+  });
+
+  $("note-delete").addEventListener("click", async () => {
+    const title = noteTitle;
+    if (!title || !confirm(`『${title}』 감상문을 지울까요? 되돌릴 수 없어요.`)) return;
+    const { error } = await sb.from("book_notes").delete().eq("book_title", title);
+    if (error) { toast("지우지 못했어요. 인터넷 연결을 확인해 주세요."); return; }
+    notes.delete(title);
+    saveNotesCache();
+    store.remove(noteDraftKey());
+    render();
+    noteSnapshot = noteState();
+    closeFull(noteDialog);
+    toast("감상문을 지웠어요");
   });
 
   // ---------- 오늘의 문장 · 내보내기 버튼 ----------
   $("today-next").addEventListener("click", () => { todayOffset++; renderToday(); });
   $("today-hide").addEventListener("click", () => { store.set("todayHidden", dayKey()); renderToday(); toast("내일 또 보여드릴게요"); });
-  $("today-body").addEventListener("click", () => { const id = $("today-card").dataset.id; if (id) openView(id); });
+  $("today-body").addEventListener("click", () => { const id = $("today-card").dataset.id; if (id) openView(id, $("today-card")); });
   $("export-txt").addEventListener("click", exportText);
   $("export-csv").addEventListener("click", exportCsv);
 
