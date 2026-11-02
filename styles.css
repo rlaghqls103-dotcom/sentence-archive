@@ -366,14 +366,15 @@ textarea { resize: vertical; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 6px 6px 12px;
+  padding: 8px 8px 8px 14px;
   border-radius: 8px;
   background: var(--book, var(--ink));
   color: var(--book-ink, var(--paper));
   text-shadow: var(--book-shadow, none);
-  font-size: .78rem;
+  font-family: var(--serif);
+  font-size: 1rem;
   font-weight: 600;
-  letter-spacing: .04em;
+  letter-spacing: .01em;
 }
 .today-actions { display: flex; gap: 2px; }
 .today-btn {
@@ -407,7 +408,7 @@ textarea { resize: vertical; }
   white-space: pre-wrap;
   word-break: keep-all;
 }
-.today-book { display: block; margin-top: 10px; font-family: var(--serif); font-size: .84rem; color: var(--ink-soft); }
+.today-book { display: block; margin-top: 12px; font-family: var(--serif); font-size: 1rem; color: var(--ink-soft); }
 
 /* ---------- 내보내기 ---------- */
 .export-bar {
@@ -501,16 +502,16 @@ textarea { resize: vertical; }
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: 8px;
   background: var(--book, var(--paper-sunk));
   color: var(--book-ink, var(--ink-soft));
   text-shadow: var(--book-shadow, none);
-  font-size: .8rem;
+  font-size: .85rem;
 }
-.sentence-book { font-family: var(--serif); font-weight: 600; font-size: .86rem; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.sentence-book { font-family: var(--serif); font-weight: 600; font-size: 1rem; line-height: 1.4; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 .sentence-author { font-weight: 400; opacity: .92; }
-.sentence-date { opacity: .85; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sentence-date { opacity: .85; white-space: nowrap; font-size: .82rem; font-variant-numeric: tabular-nums; }
 .sentence-body { padding: 18px 14px 12px; }
 
 .sentence-text {
@@ -545,6 +546,10 @@ mark { background: #ffe58a; color: #1b1b1b; border-radius: 3px; padding: 0 1px; 
 .empty .shelf { margin: 0 auto 14px; }
 
 /* ---------- 수정 창 ---------- */
+
+/* 창이 열린 동안 뒤 배경 고정 (app.js 가 body 를 고정해요) */
+html.modal-open, html.modal-open body { overflow: hidden; }
+dialog { overscroll-behavior: contain; }
 
 dialog.sheet {
   border: 0;

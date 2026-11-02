@@ -66,6 +66,26 @@
       .replace(/(^|[\s(\[{<「『“—–-])'/g, "$1‘").replace(/'/g, "’");
   }
 
+  // ---------- 창이 열린 동안 뒤 배경 고정 ----------
+  // 아이폰 Safari 는 창(dialog)이 떠 있어도 뒤 화면이 같이 스크롤돼서, 창이 열리면 body 를 그 자리에 고정해요.
+  let lockedY = null;
+  function syncScrollLock() {
+    const anyOpen = !!document.querySelector("dialog[open]");
+    const b = document.body;
+    if (anyOpen && lockedY === null) {
+      lockedY = window.scrollY;
+      document.documentElement.classList.add("modal-open");
+      Object.assign(b.style, { position: "fixed", top: `-${lockedY}px`, left: "0", right: "0", width: "100%" });
+    } else if (!anyOpen && lockedY !== null) {
+      document.documentElement.classList.remove("modal-open");
+      Object.assign(b.style, { position: "", top: "", left: "", right: "", width: "" });
+      window.scrollTo(0, lockedY); // 창을 닫으면 보던 자리 그대로
+      lockedY = null;
+    }
+  }
+  const dialogWatcher = new MutationObserver(syncScrollLock);
+  document.querySelectorAll("dialog").forEach((d) => dialogWatcher.observe(d, { attributes: true, attributeFilter: ["open"] }));
+
   // ---------- 화면 전환 ----------
 
   const views = { setup: $("view-setup"), auth: $("view-auth"), main: $("view-main") };
@@ -74,7 +94,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v20";
+  const APP_VERSION = "v21";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
