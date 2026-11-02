@@ -463,7 +463,7 @@
   // ---------- 📷 사진에서 문장 가져오기 ----------
   // 사진은 이 기기 화면에만 잠깐 띄우고, 어디에도 올리거나 저장하지 않아요.
 
-  const cameraInput = $("camera-input");
+  const photoInputs = [$("camera-input"), $("retake-input")];
   const photoDialog = $("photo-dialog");
   const photoImg = $("photo-img");
   const ocrBtn = $("photo-ocr");
@@ -471,12 +471,22 @@
   let photoUrl = null;
   let ocrBusy = false;
 
-  $("camera-btn").addEventListener("click", () => cameraInput.click());
-  $("photo-retake").addEventListener("click", () => cameraInput.click());
+  // 📷·다시 찍기는 <label for> 로 연결돼 있어서, 누르면 기기가 직접 카메라를 열어요.
+  // (아이폰 홈 화면 앱은 스크립트로 여는 input.click() 을 막을 때가 있어요)
+  // 키보드(Enter/Space)로 눌렀을 때만 스크립트로 열어줘요.
+  for (const label of [$("camera-btn"), $("photo-retake")]) {
+    label.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        $(label.htmlFor).click();
+      }
+    });
+  }
 
-  cameraInput.addEventListener("change", () => {
-    const file = cameraInput.files && cameraInput.files[0];
-    cameraInput.value = ""; // 같은 사진을 다시 골라도 change 가 일어나도록
+  function onPhotoPicked(e) {
+    const input = e.target;
+    const file = input.files && input.files[0];
+    input.value = ""; // 같은 사진을 다시 골라도 change 가 일어나도록
     if (!file) return;
     photoFile = file;
     if (photoUrl) URL.revokeObjectURL(photoUrl);
@@ -484,7 +494,8 @@
     photoImg.src = photoUrl;
     setOcrProgress(null);
     if (!photoDialog.open) photoDialog.showModal();
-  });
+  }
+  for (const input of photoInputs) input.addEventListener("change", onPhotoPicked);
 
   function closePhoto() {
     if (photoDialog.open) photoDialog.close();

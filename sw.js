@@ -2,7 +2,7 @@
    앱 화면 파일을 저장해 두어 빠르게 열리고, 인터넷이 없어도 화면이 뜨게 합니다.
    앱 파일은 '인터넷 먼저'로 받아서 업데이트가 바로 반영됩니다. */
 
-const CACHE = "sentence-archive-v4";
+const CACHE = "sentence-archive-v5";
 const SHELL = [
   "./",
   "index.html",
@@ -36,7 +36,7 @@ self.addEventListener("fetch", (event) => {
   // 내 앱 파일: 인터넷 먼저, 안 되면 저장본
   if (url.origin === self.location.origin) {
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: "no-cache" }) // 항상 서버에 새 버전이 있는지 확인
         .then((res) => {
           if (res.ok) {
             const copy = res.clone();

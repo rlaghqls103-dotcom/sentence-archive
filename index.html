@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
   <div id="app">
@@ -74,11 +74,12 @@
           <span class="today" id="today-label"></span>
           <div class="compose-tools">
             <button id="join-lines-btn" class="btn ghost small" type="button" title="사진에서 복사하면 생기는 줄바꿈을 한 줄로 합쳐요">줄 합치기</button>
-            <button id="camera-btn" class="btn soft small icon-btn" type="button" aria-label="사진 찍기" title="사진 찍어서 문장 가져오기">📷</button>
+            <label id="camera-btn" for="camera-input" class="btn soft small icon-btn" role="button" tabindex="0" aria-label="사진 찍기" title="사진 찍어서 문장 가져오기">📷</label>
             <button id="paste-btn" class="btn soft small" type="button">붙여넣기</button>
           </div>
         </div>
-        <input id="camera-input" type="file" accept="image/*" capture="environment" hidden>
+        <!-- 📷 라벨을 누르면 기기가 바로 카메라를 열어요 (아이폰 홈 화면 앱 호환) -->
+        <input id="camera-input" class="visually-hidden photo-input" type="file" accept="image/*" capture="environment" tabindex="-1">
 
         <textarea id="compose-content" class="sentence-input" rows="4" required
           placeholder="📷으로 책 페이지를 찍거나, 복사한 문장을 붙여넣으세요."></textarea>
@@ -170,7 +171,8 @@
       </div>
       <div class="photo-actions">
         <button id="photo-close" class="btn ghost-dark" type="button">닫기</button>
-        <button id="photo-retake" class="btn ghost-dark" type="button">다시 찍기</button>
+        <label id="photo-retake" for="retake-input" class="btn ghost-dark" role="button" tabindex="0">다시 찍기</label>
+        <input id="retake-input" class="visually-hidden photo-input" type="file" accept="image/*" capture="environment" tabindex="-1">
         <button id="photo-ocr" class="btn ghost-dark" type="button">자동 인식</button>
         <button id="photo-paste" class="btn primary" type="button">붙여넣고 닫기</button>
       </div>
@@ -179,8 +181,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="config.js"></script>
+  <script src="config.js?v=5"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
