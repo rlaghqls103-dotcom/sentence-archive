@@ -74,7 +74,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v16";
+  const APP_VERSION = "v17";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -665,8 +665,8 @@
     }
 
     li.append(band, body);
-    li.addEventListener("click", () => openEdit(it.id));
-    li.addEventListener("keydown", (e) => { if (e.key === "Enter") openEdit(it.id); });
+    li.addEventListener("click", () => openView(it.id));
+    li.addEventListener("keydown", (e) => { if (e.key === "Enter") openView(it.id); });
     return li;
   }
 
@@ -1131,10 +1131,39 @@
     }
   });
 
+  // ---------- 문장 보기 ----------
+  // 문장을 누르면 먼저 전체 문장을 크게 보여주고, [편집하기]를 눌러야 고치기 창이 열려요.
+  const viewDialog = $("view-dialog");
+  let viewingId = null;
+  function openView(id) {
+    const it = items.find((x) => x.id === id);
+    if (!it) return;
+    viewingId = id;
+    const band = $("view-band");
+    paintBook(band, it.book_title);
+    const book = [it.book_title ? `『${it.book_title}』` : "", it.page ? `p.${it.page}` : ""].filter(Boolean).join(" · ");
+    $("view-book").textContent = book;
+    $("view-date").textContent = fmtDate(it.created_at);
+    $("view-date").dateTime = it.created_at;
+    $("view-text").textContent = smartQuotes(it.content);
+    $("view-memo").hidden = !it.memo;
+    $("view-memo").textContent = it.memo ? smartQuotes(it.memo) : "";
+    paintBook($("view-memo"), it.book_title);
+    viewDialog.showModal();
+    viewDialog.querySelector(".view-card").scrollTop = 0; // 긴 문장도 처음부터 보이게
+  }
+  $("view-close").addEventListener("click", () => viewDialog.close());
+  viewDialog.addEventListener("click", (e) => { if (e.target === viewDialog) viewDialog.close(); });
+  $("view-edit").addEventListener("click", () => {
+    const id = viewingId;
+    viewDialog.close();
+    if (id) openEdit(id);
+  });
+
   // ---------- 오늘의 문장 · 내보내기 버튼 ----------
   $("today-next").addEventListener("click", () => { todayOffset++; renderToday(); });
   $("today-hide").addEventListener("click", () => { store.set("todayHidden", dayKey()); renderToday(); toast("내일 또 보여드릴게요"); });
-  $("today-body").addEventListener("click", () => { const id = $("today-card").dataset.id; if (id) openEdit(id); });
+  $("today-body").addEventListener("click", () => { const id = $("today-card").dataset.id; if (id) openView(id); });
   $("export-txt").addEventListener("click", exportText);
   $("export-csv").addEventListener("click", exportCsv);
 
