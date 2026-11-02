@@ -624,7 +624,8 @@ dialog.sheet .paper-card { padding: 18px; }
 #view-dialog .sheet-actions { padding: 0 6px 4px; }
 
 /* 맨 아래 작은 로그아웃 */
-.app-footer { display: flex; justify-content: center; margin-top: 28px; }
+.app-footer { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 28px; }
+.font-status { font-size: .72rem; color: var(--ink-faint); }
 .app-footer .btn.link { color: var(--ink-faint); font-size: .8rem; }
 
 /* ---------- 사진 보기 ---------- */

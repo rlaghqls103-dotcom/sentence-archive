@@ -74,7 +74,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v18";
+  const APP_VERSION = "v19";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -244,6 +244,14 @@
     return buf;
   }
 
+  // 맨 아래에 지금 어떤 글꼴로 보이는지 표시 (제대로 적용됐는지 확인용)
+  function setFontStatus(text) { const el = $("font-status"); if (el) el.textContent = text; }
+  function fontFamilyName(files) {
+    // "29CM-Editorial-400.woff2" → "29CM Editorial"
+    const n = files[0].name.replace(FONT_EXT, "").replace(/[-_ ]?(\d00|thin|hairline|extralight|ultralight|light|regular|medium|semibold|demibold|bold|extrabold|ultrabold|black|heavy|italic|oblique)$/gi, "");
+    return n.replace(/[-_]+/g, " ").trim() || "내 폰트";
+  }
+
   async function loadCustomFont() {
     if (fontsApplied) { document.documentElement.classList.add("custom-font"); return; }
     let files;
@@ -265,7 +273,7 @@
       if (!best.has(k) || rank(f.name) < rank(best.get(k).name)) best.set(k, f);
     }
     files = [...best.values()];
-    if (!files.length) return;
+    if (!files.length) { setFontStatus("글꼴: 기본 명조 · 내 폰트 파일을 찾지 못했어요"); return; }
 
     let cache = null;
     try { cache = await caches.open(FONT_CACHE); } catch { /* 사생활 보호 모드 등: 캐시 없이 */ }
@@ -280,9 +288,11 @@
     }));
     const faces = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
     results.filter((r) => r.status === "rejected").forEach((r) => console.warn("내 폰트를 불러오지 못했어요", r.reason));
-    if (!faces.length) return;
+    if (!faces.length) { setFontStatus("글꼴: 기본 명조 · 내 폰트를 불러오지 못했어요"); return; }
     faces.forEach((f) => document.fonts.add(f));
     fontsApplied = true;
+    const weights = [...new Set(faces.map((f) => f.weight))].sort();
+    setFontStatus(`글꼴: ${fontFamilyName(files)} · 굵기 ${weights.join("·")}` + (faces.length < files.length ? ` (${files.length - faces.length}개 실패)` : ""));
     if (user) document.documentElement.classList.add("custom-font");
 
     // 바뀌거나 지운 폰트의 예전 저장본 정리

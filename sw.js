@@ -2,7 +2,7 @@
    앱 화면 파일을 저장해 두어 빠르게 열리고, 인터넷이 없어도 화면이 뜨게 합니다.
    앱 파일은 '인터넷 먼저'로 받아서 업데이트가 바로 반영됩니다. */
 
-const CACHE = "sentence-archive-v18";
+const CACHE = "sentence-archive-v19";
 const SHELL = [
   "./",
   "index.html",
