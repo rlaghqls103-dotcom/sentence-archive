@@ -41,18 +41,29 @@
     toastTimer = setTimeout(() => el.classList.remove("show"), 2400);
   }
 
+  // 줄이 바뀐 자리 표시용 보이지 않는 글자 (확인 패널을 만든 뒤 지워요)
+  const BRK = "\u2063";
+
   // 사진에서 복사한 문장은 줄 끝마다 줄바꿈이 들어가요. 문단(빈 줄)은 남기고 나머지는 한 줄로 합쳐요.
-  function joinLines(text) {
+  // mark=true 면 합친 자리에 BRK 를 남겨, 나중에 "줄이 바뀐 자리"로 보여줘요.
+  function joinLines(text, mark = false) {
     return text
       .replace(/\r\n?/g, "\n")
       .split(/\n\s*\n/)
       .map((p) => p
         .replace(/([A-Za-z])-\n(?=[a-z])/g, "$1") // 영어 하이픈 줄바꿈
-        .replace(/\s*\n\s*/g, " ")
+        .replace(/[ \t]*\n[ \t]*/g, mark ? BRK + " " : " ")
         .replace(/[ \t]{2,}/g, " ")
         .trim())
       .filter(Boolean)
       .join("\n\n");
+  }
+
+  // 곧은 따옴표(" ')를 책처럼 둥근 따옴표(“ ” ‘ ’)로
+  function smartQuotes(t) {
+    return t
+      .replace(/(^|[\s(\[{<「『“‘—–-])"/g, "$1“").replace(/"/g, "”")
+      .replace(/(^|[\s(\[{<「『“—–-])'/g, "$1‘").replace(/'/g, "’");
   }
 
   // ---------- 화면 전환 ----------
@@ -63,7 +74,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v15";
+  const APP_VERSION = "v16";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -108,6 +119,8 @@
   let bookFilter = null;
   let channel = null;
   let lastLoad = 0;
+  let lastShown = [];
+  let todayOffset = 0; // [다른 문장]을 누른 만큼
 
   const syncEl = $("sync-state");
   function setSync(state) {
@@ -504,6 +517,62 @@
     if (i < text.length) parent.append(text.slice(i));
   }
 
+  // ---------- 오늘의 문장 ----------
+  // 날짜로 고르기 때문에 같은 날에는 PC와 폰에서 같은 문장이 보여요. [다른 문장]으로 넘겨볼 수 있어요.
+  const dayKey = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+  function renderToday() {
+    const card = $("today-card");
+    if (items.length === 0 || store.get("todayHidden", "") === dayKey()) { card.hidden = true; return; }
+    const ordered = [...items].sort((a, b) => (a.created_at < b.created_at ? -1 : 1)); // 오래된 순(기기마다 같게)
+    let h = 0;
+    for (const ch of dayKey()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const it = ordered[(h + todayOffset) % ordered.length];
+    card.hidden = false;
+    card.dataset.id = it.id;
+    paintBook(card, it.book_title);
+    $("today-text").textContent = smartQuotes(it.content);
+    $("today-book").textContent = [it.book_title ? `『${it.book_title}』` : "", it.page ? `p.${it.page}` : ""].filter(Boolean).join(" · ");
+    $("today-next").hidden = items.length < 2;
+  }
+
+  // ---------- 내보내기 ----------
+  function exportName(ext) {
+    const base = "문장수집창고" + (bookFilter ? "_" + bookFilter.replace(/[\\/:*?"<>|]/g, "") : "");
+    return `${base}_${dayKey()}.${ext}`;
+  }
+  // 아이폰은 공유 시트(파일에 저장·보내기)로, 안 되면 바로 내려받기로
+  async function shareOrDownload(name, type, body) {
+    const file = new File([body], name, { type });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: name });
+        return;
+      }
+    } catch (err) {
+      if (err && err.name === "AbortError") return; // 사용자가 공유를 닫음
+    }
+    // 내려받기는 일부 브라우저가 한글 파일 이름을 버려서, 영어 이름으로 (예: sentences_2026-11-02.csv)
+    const ascii = "sentences" + (bookFilter ? "_book" : "") + "_" + dayKey() + name.slice(name.lastIndexOf("."));
+    const url = URL.createObjectURL(file);
+    const a = Object.assign(document.createElement("a"), { href: url, download: ascii });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+  function exportText() {
+    const blocks = lastShown.map((it) => {
+      const head = [it.book_title ? `『${it.book_title}』` : "", it.page ? `p.${it.page}` : "", fmtDate(it.created_at)].filter(Boolean).join(" · ");
+      return [head, smartQuotes(it.content), it.memo ? `— ${smartQuotes(it.memo)}` : ""].filter(Boolean).join("\n");
+    });
+    shareOrDownload(exportName("txt"), "text/plain;charset=utf-8", blocks.join("\n\n") + "\n");
+  }
+  function exportCsv() {
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = [["날짜", "책 제목", "페이지", "문장", "나의 생각"]]
+      .concat(lastShown.map((it) => [fmtDate(it.created_at), it.book_title, it.page, smartQuotes(it.content), it.memo && smartQuotes(it.memo)]));
+    // 맨 앞 BOM: 엑셀에서 한글이 깨지지 않게
+    shareOrDownload(exportName("csv"), "text/csv;charset=utf-8", "\uFEFF" + rows.map((r) => r.map(esc).join(",")).join("\r\n"));
+  }
+
   function render() {
     assignBookColors();
     updateSwatch();
@@ -552,6 +621,10 @@
     list.replaceChildren(...shown.map((it) => card(it, q)));
     $("empty-state").hidden = items.length > 0;
     $("no-result").hidden = items.length === 0 || shown.length > 0;
+    lastShown = shown;
+    renderToday();
+    $("export-bar").hidden = shown.length === 0;
+    $("export-count").textContent = (bookFilter || q) ? `지금 보이는 문장 ${shown.length}개` : `전체 문장 ${shown.length}개`;
   }
 
   function card(it, q) {
@@ -582,12 +655,12 @@
     body.className = "sentence-body";
     const p = document.createElement("p");
     p.className = "sentence-text";
-    highlight(p, it.content, q);
+    highlight(p, smartQuotes(it.content), q);
     body.append(p);
     if (it.memo) {
       const m = document.createElement("p");
       m.className = "sentence-memo";
-      highlight(m, it.memo, q);
+      highlight(m, smartQuotes(it.memo), q);
       body.append(m);
     }
 
@@ -617,16 +690,93 @@
   // 카메라 앱을 다녀오는 사이 앱이 새로고침돼도 쓰던 내용이 남도록
   content.addEventListener("input", () => store.set("draft", content.value));
 
+  // 입력칸에 넣기: 둥근 따옴표로 바꾸고, 줄이 바뀐 자리(BRK)가 있으면 확인 패널을 띄워요
   function insertText(text) {
+    text = smartQuotes(text);
     const cur = content.value;
-    if (!cur.trim()) content.value = text;
+    let at = 0;
+    if (!cur.trim()) content.value = stripBreaks(text);
     else {
       const start = content.selectionStart ?? cur.length;
       const end = content.selectionEnd ?? cur.length;
-      content.value = cur.slice(0, start) + text + cur.slice(end);
+      // 이미 쓴 글 뒤에 이어 붙일 때는 한 칸 띄워요
+      const sep = start > 0 && !/\s$/.test(cur.slice(0, start)) ? " " : "";
+      at = start + sep.length;
+      content.value = cur.slice(0, start) + sep + stripBreaks(text) + cur.slice(end);
     }
+    showBreaks(text, at);
     store.set("draft", content.value);
   }
+
+  // ---------- 줄이 바뀐 자리 확인 ----------
+  // 한글 책은 단어 중간에서도 줄이 바뀌어서, 사진에서 가져오면 "없 는"처럼 공백이 생길 수 있어요.
+  // 줄이 바뀐 자리를 칩으로 보여주고, 누르면 그 자리만 붙이거나 다시 띄워요.
+  const breaksBox = $("breaks");
+  const breaksList = $("breaks-list");
+  let breaks = [];
+  const stripBreaks = (t) => t.split(BRK).join("");
+  // 조사·어미로 자주 시작하는 글자: 이런 글자로 시작하면 단어가 이어졌을 가능성이 높아요
+  const LIKELY = new Set([..."은는이가을를에의도와과로만께서며고다요니까지야랑던한할된될든게죠"]);
+
+  function showBreaks(text, at) {
+    breaks = [];
+    let plainPos = at;
+    const parts = text.split(BRK);
+    for (let i = 0; i < parts.length - 1; i++) {
+      plainPos += parts[i].length;
+      const left = (parts[i].match(/(\S+)$/) || [])[1];
+      const right = (parts[i + 1].match(/^\s(\S+)/) || [])[1];
+      if (left && right) {
+        const hangul = /[가-힣]$/.test(left) && /^[가-힣]/.test(right);
+        breaks.push({ left, right, pos: plainPos, joined: false, likely: hangul && LIKELY.has(right[0]) });
+      }
+    }
+    renderBreaks();
+  }
+
+  function renderBreaks() {
+    breaksBox.hidden = breaks.length === 0;
+    $("breaks-join-likely").hidden = !breaks.some((b) => b.likely && !b.joined);
+    breaksList.replaceChildren(...breaks.map((b, i) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "break-chip" + (b.likely ? " likely" : "");
+      chip.setAttribute("aria-pressed", String(b.joined));
+      chip.title = b.joined ? "다시 띄우기" : "붙여 쓰기";
+      const l = document.createElement("span"); l.textContent = b.left.slice(-3);
+      const gap = document.createElement("span"); gap.className = "gap"; gap.textContent = b.joined ? "" : "␣";
+      const r = document.createElement("span"); r.textContent = b.right.slice(0, 3);
+      chip.append(l, gap, r);
+      chip.addEventListener("click", () => toggleBreak(i));
+      return chip;
+    }));
+  }
+
+  // 원래 자리 근처에서 "앞말 뒷말" ↔ "앞말뒷말"을 찾아 바꿔요 (그사이 글을 고쳤어도 가장 가까운 곳)
+  function toggleBreak(i) {
+    const b = breaks[i];
+    const from = b.joined ? b.left + b.right : b.left + " " + b.right;
+    const to = b.joined ? b.left + " " + b.right : b.left + b.right;
+    const v = content.value;
+    let best = -1, dist = Infinity;
+    for (let k = v.indexOf(from); k >= 0; k = v.indexOf(from, k + 1)) {
+      const d = Math.abs(k + b.left.length - b.pos);
+      if (d < dist) { dist = d; best = k; }
+    }
+    if (best < 0) { toast("그 자리를 찾지 못했어요. 입력칸에서 직접 고쳐 주세요"); return; }
+    content.value = v.slice(0, best) + to + v.slice(best + from.length);
+    const delta = to.length - from.length;
+    breaks.forEach((o) => { if (o.pos > b.pos) o.pos += delta; });
+    b.joined = !b.joined;
+    store.set("draft", content.value);
+    renderBreaks();
+  }
+
+  function clearBreaks() { breaks = []; renderBreaks(); }
+  $("breaks-close").addEventListener("click", clearBreaks);
+  $("breaks-join-likely").addEventListener("click", () => {
+    breaks.forEach((b, i) => { if (b.likely && !b.joined) toggleBreak(i); });
+  });
 
   $("paste-btn").addEventListener("click", async () => {
     try {
@@ -642,7 +792,9 @@
 
   $("join-lines-btn").addEventListener("click", () => {
     if (!content.value.trim()) return;
-    content.value = joinLines(content.value);
+    const marked = smartQuotes(joinLines(content.value, true));
+    content.value = stripBreaks(marked);
+    showBreaks(marked, 0);
     store.set("draft", content.value);
     toast("줄바꿈을 정리했어요");
   });
@@ -656,7 +808,7 @@
 
   $("compose").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const text = content.value.trim();
+    const text = smartQuotes(content.value.trim());
     if (!text) { content.focus(); return; }
     const book = bookInput.value.trim();
     const page = pageInput.value.trim();
@@ -675,6 +827,7 @@
     upsertLocal(data);
     store.set("lastBook", book);
     store.remove("draft");
+    clearBreaks();
     content.value = "";
     pageInput.value = "";
     query = "";
@@ -911,17 +1064,20 @@
       ws.forEach((w, i) => {
         const last = i === ws.length - 1;
         const cutByBox = last && w !== line.words[line.words.length - 1];
-        text += w.text + (w.sp || cutByBox ? " " : "");
+        const lineEnd = last; // 이 줄(또는 상자에 잘린 줄)의 마지막 단어
+        if (lineEnd && (w.sp || cutByBox)) text += w.text + BRK + " ";
+        else text += w.text + (w.sp ? " " : "");
       });
     }
-    return text.trim();
+    return text.replace(new RegExp(BRK + " $"), "").trim();
   }
 
   function cleanOcrText(text) {
     return joinLines(
       text
         .replace(/[|¦]/g, "")                      // 줄·테두리를 글자로 잘못 읽은 것
-        .replace(/[ \t]+([.,!?…」』”’)])/g, "$1")  // 문장부호 앞의 불필요한 공백
+        .replace(/[ \t]+([.,!?…」』”’)])/g, "$1"), // 문장부호 앞의 불필요한 공백
+      true
     );
   }
 
@@ -974,6 +1130,13 @@
       cropReadBtn.disabled = !cropBox;
     }
   });
+
+  // ---------- 오늘의 문장 · 내보내기 버튼 ----------
+  $("today-next").addEventListener("click", () => { todayOffset++; renderToday(); });
+  $("today-hide").addEventListener("click", () => { store.set("todayHidden", dayKey()); renderToday(); toast("내일 또 보여드릴게요"); });
+  $("today-body").addEventListener("click", () => { const id = $("today-card").dataset.id; if (id) openEdit(id); });
+  $("export-txt").addEventListener("click", exportText);
+  $("export-csv").addEventListener("click", exportCsv);
 
   // ---------- 검색 ----------
 
@@ -1051,7 +1214,7 @@
 
   $("edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const text = $("edit-content").value.trim();
+    const text = smartQuotes($("edit-content").value.trim());
     if (!text) return;
     const btn = $("edit-save");
     btn.disabled = true;
@@ -1061,7 +1224,7 @@
         content: text,
         book_title: $("edit-book").value.trim() || null,
         page: $("edit-page").value.trim() || null,
-        memo: $("edit-memo").value.trim() || null,
+        memo: smartQuotes($("edit-memo").value.trim()) || null,
       })
       .eq("id", editingId)
       .select()

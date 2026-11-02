@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="styles.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=16">
 </head>
 <body>
   <div id="app">
@@ -70,6 +70,25 @@
         </div>
       </header>
 
+      <!-- 오늘의 문장: 모아둔 문장 중 하루에 하나 (PC·폰 같은 문장) -->
+      <section id="today-card" class="today-card" hidden aria-label="오늘의 문장">
+        <div class="today-band">
+          <span class="today-label">오늘의 문장</span>
+          <span class="today-actions">
+            <button id="today-next" class="today-btn" type="button" aria-label="다른 문장 보기" title="다른 문장">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>
+            </button>
+            <button id="today-hide" class="today-btn" type="button" aria-label="오늘은 그만 보기" title="오늘은 그만 보기">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </span>
+        </div>
+        <button id="today-body" class="today-body" type="button">
+          <span id="today-text" class="today-text"></span>
+          <span id="today-book" class="today-book"></span>
+        </button>
+      </section>
+
       <!-- 문장 입력 -->
       <form id="compose" class="paper-card compose">
         <div class="compose-top">
@@ -84,6 +103,14 @@
 
         <textarea id="compose-content" class="sentence-input" rows="4" required
           placeholder="카메라로 책 페이지를 찍거나, 복사한 문장을 붙여넣으세요."></textarea>
+        <div id="breaks" class="breaks" hidden>
+          <div class="breaks-head">
+            <span><b>줄이 바뀐 자리</b> · 단어가 이어지는 곳은 눌러서 붙여 주세요</span>
+            <button id="breaks-close" class="btn link small" type="button">닫기</button>
+          </div>
+          <div id="breaks-list" class="breaks-list"></div>
+          <button id="breaks-join-likely" class="btn link small" type="button">표시된 곳 모두 붙이기</button>
+        </div>
 
         <div class="compose-meta">
           <label class="field grow">
@@ -124,6 +151,14 @@
       </div>
       <div id="no-result" class="empty" hidden>
         <p>찾는 문장이 없어요.</p>
+      </div>
+      <!-- 내보내기: 지금 보이는 문장(책 선택·검색 반영)을 파일로 -->
+      <div id="export-bar" class="export-bar" hidden>
+        <span id="export-count" class="muted small"></span>
+        <div class="export-actions">
+          <button id="export-txt" class="btn ghost small" type="button">텍스트로 내보내기</button>
+          <button id="export-csv" class="btn ghost small" type="button">엑셀로 내보내기</button>
+        </div>
       </div>
     </section>
   </div>
@@ -200,8 +235,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="config.js?v=15"></script>
+  <script src="config.js?v=16"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>

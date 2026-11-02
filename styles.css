@@ -141,10 +141,10 @@ body {
   font-family: var(--serif);
   font-weight: 700;
   font-size: 1.6rem;
-  letter-spacing: -.01em;
+  letter-spacing: -.025em;
   margin: 0 0 4px;
 }
-.small-brand { font-size: 1.3rem; margin: 0; }
+.small-brand { font-size: 1.4rem; margin: 0; }
 
 /* 서가에 꽂힌 책등 같은 색 줄무늬 */
 .shelf {
@@ -306,7 +306,8 @@ textarea { resize: vertical; }
 .sentence-input {
   font-family: var(--serif);
   font-size: 17px;
-  line-height: 1.8;
+  line-height: 1.85;
+  letter-spacing: -0.01em;
   min-height: 7.5em;
   background: var(--paper);
 }
@@ -323,6 +324,105 @@ textarea { resize: vertical; }
 .tip ol { padding-left: 1.2em; margin: 8px 0 6px; }
 .tip li { margin: 3px 0; }
 .tip p { margin: 4px 0 0; }
+
+/* ---------- 줄이 바뀐 자리 확인 ---------- */
+.breaks {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--paper-sunk);
+  font-size: .82rem;
+  color: var(--ink-soft);
+}
+.breaks-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.breaks-head b { color: var(--ink); }
+.breaks-head .btn.link, .breaks > .btn.link { margin: 0; padding: 2px 4px; font-size: .8rem; color: var(--ink-soft); }
+.breaks-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.break-chip {
+  font: inherit;
+  font-family: var(--serif);
+  font-size: .9rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--paper-card);
+  color: var(--ink);
+  cursor: pointer;
+}
+.break-chip .gap { color: var(--ink-faint); padding: 0 1px; }
+.break-chip.likely { border-color: #f5b400; box-shadow: inset 0 0 0 1px #f5b400; }
+.break-chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); box-shadow: none; }
+
+/* ---------- 오늘의 문장 ---------- */
+.today-card {
+  margin: 0 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-card);
+  box-shadow: var(--shadow);
+  padding: 8px;
+}
+.today-band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 6px 6px 12px;
+  border-radius: 8px;
+  background: var(--book, var(--ink));
+  color: var(--book-ink, var(--paper));
+  font-size: .78rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+}
+.today-actions { display: flex; gap: 2px; }
+.today-btn {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: .85;
+}
+.today-btn:hover { opacity: 1; background: rgba(255, 255, 255, .15); }
+.today-btn .icon { width: 18px; height: 18px; }
+.today-body {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  padding: 16px 12px 10px;
+  cursor: pointer;
+}
+.today-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  line-height: 1.75;
+  letter-spacing: -0.015em;
+  white-space: pre-wrap;
+  word-break: keep-all;
+}
+.today-book { display: block; margin-top: 10px; font-family: var(--serif); font-size: .84rem; color: var(--ink-soft); }
+
+/* ---------- 내보내기 ---------- */
+.export-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 22px 2px 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.export-actions { display: flex; gap: 6px; }
 
 /* ---------- 검색 / 칩 ---------- */
 
@@ -379,7 +479,7 @@ textarea { resize: vertical; }
 
 /* ---------- 문장 목록: 전집 표지처럼 ---------- */
 
-.sentence-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.sentence-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
 
 .sentence {
   position: relative;
@@ -408,14 +508,15 @@ textarea { resize: vertical; }
   color: var(--book-ink, var(--ink-soft));
   font-size: .8rem;
 }
-.sentence-book { font-family: var(--serif); font-weight: 600; overflow-wrap: anywhere; }
+.sentence-book { font-family: var(--serif); font-weight: 600; font-size: .86rem; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 .sentence-date { opacity: .8; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.sentence-body { padding: 16px 12px 10px; }
+.sentence-body { padding: 18px 14px 12px; }
 
 .sentence-text {
   font-family: var(--serif);
-  font-size: 1.04rem;
-  line-height: 1.85;
+  font-size: 1.0625rem;      /* 17px */
+  line-height: 1.9;
+  letter-spacing: -0.01em;
   margin: 0;
   white-space: pre-wrap;
   word-break: keep-all;
@@ -455,7 +556,7 @@ dialog.sheet {
 dialog.sheet::backdrop { background: rgba(0, 0, 0, .35); }
 dialog.sheet .paper-card { padding: 18px; }
 .sheet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-.sheet-head h2 { font-family: var(--serif); font-size: 1.15rem; margin: 0; }
+.sheet-head h2 { font-family: var(--serif); font-size: 1.2rem; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
 .sheet-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
 .spacer { flex: 1; }
 
