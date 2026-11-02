@@ -63,7 +63,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v10";
+  const APP_VERSION = "v11";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -244,6 +244,14 @@
     } catch {
       files = store.get("fontFiles", []); // 오프라인이면 마지막 목록과 저장해 둔 파일로
     }
+    // 같은 굵기·모양이 여러 형식으로 있으면 하나만 (woff2 > woff > otf > ttf)
+    const rank = (n) => ["woff2", "woff", "otf", "ttf"].indexOf(n.split(".").pop().toLowerCase());
+    const best = new Map();
+    for (const f of files) {
+      const k = fontWeight(f.name) + (/italic|oblique/i.test(f.name) ? "i" : "");
+      if (!best.has(k) || rank(f.name) < rank(best.get(k).name)) best.set(k, f);
+    }
+    files = [...best.values()];
     if (!files.length) return;
 
     let cache = null;
