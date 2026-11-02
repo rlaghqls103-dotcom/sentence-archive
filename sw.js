@@ -2,7 +2,7 @@
    앱 화면 파일을 저장해 두어 빠르게 열리고, 인터넷이 없어도 화면이 뜨게 합니다.
    앱 파일은 '인터넷 먼저'로 받아서 업데이트가 바로 반영됩니다. */
 
-const CACHE = "sentence-archive-v9";
+const CACHE = "sentence-archive-v10";
 const SHELL = [
   "./",
   "index.html",
@@ -23,7 +23,8 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // 예전 앱 파일 캐시만 지워요 (내 폰트 캐시 "sentence-fonts" 는 남겨요)
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("sentence-archive-") && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

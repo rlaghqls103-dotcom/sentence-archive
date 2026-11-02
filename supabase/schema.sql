@@ -65,3 +65,15 @@ end $$;
 
 revoke all on function public.ocr_take(int) from public, anon, authenticated;
 grant execute on function public.ocr_take(int) to service_role;
+
+-- ───────────────────────────────────────────────
+-- 내 폰트 보관함 (비공개). 로그인한 사용자만 내려받을 수 있어요.
+-- 폰트 파일은 대시보드 → Storage → fonts 에 직접 올려요. (공개 GitHub 에는 올리지 않아요)
+insert into storage.buckets (id, name, public)
+values ('fonts', 'fonts', false)
+on conflict (id) do nothing;
+
+drop policy if exists "fonts: signed-in can read" on storage.objects;
+create policy "fonts: signed-in can read" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'fonts');

@@ -76,10 +76,20 @@
 2. **Edge Functions → Deploy a new function → Via Editor**를 열어요.
    - 이름을 `ocr`로 하고, [`supabase/functions/ocr/index.ts`](supabase/functions/ocr/index.ts) 내용을 붙여넣은 뒤 **Deploy**를 눌러요.
 
+### 5. 내 폰트 쓰기 (선택, 비공개)
+개인 사용만 허용된 폰트는 공개 GitHub에 올리면 안 되니, **Supabase 비공개 보관함**에 넣어요. 로그인한 본인만 받을 수 있어요.
+1. **SQL Editor**에서 [`supabase/schema.sql`](supabase/schema.sql)을 다시 실행해요. `fonts` 보관함과 읽기 권한이 만들어져요.
+2. **Storage → fonts → Upload file**로 폰트 파일(`.woff2` `.woff` `.otf` `.ttf`)을 올려요.
+   - 굵기가 여러 개면 모두 올려요. 파일 이름의 `Regular`, `Bold` 같은 말로 굵기를 알아봐요.
+3. 앱을 다시 열면 **문장과 제목**에 적용돼요. 버튼 같은 작은 글자는 기본 고딕을 유지해요.
+   - 한 번 받은 폰트는 기기에 저장돼서 다음부터는 바로 떠요.
+   - 로그인 화면은 기본 폰트로 보여요.
+
 ## 보안 메모
 - `config.js`의 publishable 키는 공개되어도 괜찮도록 만들어진 키예요.
 - 문장 데이터는 Row Level Security로 **로그인한 본인만** 읽고 쓸 수 있어요.
 - 구글 API 키는 Supabase Secrets에만 있어요. 중간 서버(`ocr`)는 **로그인한 사용자 요청만** 받아요.
+- 내 폰트는 비공개 보관함(`fonts`)에 있고, 로그인한 사용자만 내려받을 수 있어요.
 
 ## 구성
 빌드 도구 없이 HTML/CSS/JS만으로 만들었어요.

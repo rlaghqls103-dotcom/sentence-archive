@@ -63,7 +63,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v9";
+  const APP_VERSION = "v10";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -192,7 +192,87 @@
     setTimeout(() => (user ? enterMain() : enterAuth()), 0);
   });
 
+  // ---------- 내 폰트 (Supabase 비공개 보관함) ----------
+  // 로그인한 뒤 Storage 의 "fonts" 보관함에서 폰트 파일을 받아 문장·제목(--serif)에 적용해요.
+  // 한 번 받은 파일은 이 기기에 저장해 두어(Cache Storage) 다음부터는 바로, 오프라인에서도 떠요.
+  const FONT_FAMILY = "ArchiveCustom";
+  const FONT_CACHE = "sentence-fonts";
+  const FONT_EXT = /\.(woff2|woff|otf|ttf)$/i;
+  let fontsApplied = false;
+
+  // 파일 이름으로 굵기를 정해요 (예: 29CM-Editorial-Bold.otf → 700). 표시가 없으면 400.
+  function fontWeight(name) {
+    const n = name.toLowerCase().replace(/[-_ ]/g, "");
+    const num = name.match(/(?:^|\D)([1-9]00)(?:\D|$)/);
+    if (num) return num[1];
+    const words = [
+      ["extrabold", 800], ["ultrabold", 800], ["semibold", 600], ["demibold", 600],
+      ["extralight", 200], ["ultralight", 200], ["thin", 100], ["hairline", 100],
+      ["light", 300], ["medium", 500], ["bold", 700], ["black", 900], ["heavy", 900],
+    ];
+    for (const [w, v] of words) if (n.includes(w)) return String(v);
+    return "400";
+  }
+
+  function fontCacheKey(file) {
+    return `https://fonts.local/${encodeURIComponent(file.name)}?v=${encodeURIComponent(file.updated_at || "")}`;
+  }
+
+  async function fontBytes(file, cache) {
+    const key = fontCacheKey(file);
+    if (cache) {
+      const hit = await cache.match(key);
+      if (hit) return hit.arrayBuffer();
+    }
+    const { data, error } = await sb.storage.from("fonts").download(file.name);
+    if (error) throw error;
+    const buf = await data.arrayBuffer();
+    if (cache) { try { await cache.put(key, new Response(buf.slice(0))); } catch { /* 저장공간 없음: 무시 */ } }
+    return buf;
+  }
+
+  async function loadCustomFont() {
+    if (fontsApplied) { document.documentElement.classList.add("custom-font"); return; }
+    let files;
+    try {
+      const { data, error } = await sb.storage.from("fonts").list("", { limit: 100 });
+      if (error) throw error;
+      files = (data || [])
+        .filter((f) => f.name && FONT_EXT.test(f.name))
+        .map((f) => ({ name: f.name, updated_at: f.updated_at || f.created_at || "" }));
+      store.set("fontFiles", files);
+    } catch {
+      files = store.get("fontFiles", []); // 오프라인이면 마지막 목록과 저장해 둔 파일로
+    }
+    if (!files.length) return;
+
+    let cache = null;
+    try { cache = await caches.open(FONT_CACHE); } catch { /* 사생활 보호 모드 등: 캐시 없이 */ }
+    const results = await Promise.allSettled(files.map(async (f) => {
+      const face = new FontFace(FONT_FAMILY, await fontBytes(f, cache), {
+        weight: fontWeight(f.name),
+        style: /italic|oblique/i.test(f.name) ? "italic" : "normal",
+        display: "swap",
+      });
+      await face.load();
+      return face;
+    }));
+    const faces = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+    results.filter((r) => r.status === "rejected").forEach((r) => console.warn("내 폰트를 불러오지 못했어요", r.reason));
+    if (!faces.length) return;
+    faces.forEach((f) => document.fonts.add(f));
+    fontsApplied = true;
+    if (user) document.documentElement.classList.add("custom-font");
+
+    // 바뀌거나 지운 폰트의 예전 저장본 정리
+    if (cache) {
+      const keep = new Set(files.map(fontCacheKey));
+      for (const req of await cache.keys()) if (!keep.has(req.url)) cache.delete(req);
+    }
+  }
+
   function enterAuth() {
+    document.documentElement.classList.remove("custom-font"); // 로그인 화면은 기본 폰트
     if (channel) { sb.removeChannel(channel); channel = null; }
     items = [];
     bookFilter = null;
@@ -204,6 +284,7 @@
 
   function enterMain() {
     show("main");
+    loadCustomFont().catch((err) => console.warn("내 폰트를 불러오지 못했어요", err));
     items = store.get("cache:" + user.id, []);
     const lastBook = store.get("lastBook", "");
     if (lastBook && !$("compose-book").value) $("compose-book").value = lastBook;
