@@ -20,7 +20,7 @@
   <!-- 문장 글꼴: 마루부리 (네이버, OFL 무료 글꼴) -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@kfonts/maruburi@0.1.0/index.css">
-  <link rel="stylesheet" href="styles.css?v=23">
+  <link rel="stylesheet" href="styles.css?v=24">
 </head>
 <body>
   <div id="app">
@@ -212,15 +212,50 @@
   <dialog id="view-dialog" class="fullview" aria-label="문장 보기">
     <div class="full-inner">
       <div class="grabber" aria-hidden="true"></div>
-      <div class="full-scroll">
-        <div class="full-content">
-          <div id="view-band" class="sentence-band">
-            <span id="view-book" class="sentence-book"></span>
-            <time id="view-date" class="sentence-date"></time>
+      <!-- 앞·지금·뒤 세 장을 나란히 두고, 손가락을 따라 함께 움직여요 -->
+      <div class="pager">
+        <div id="view-track" class="pager-track">
+          <div class="page is-prev">
+            <div class="full-scroll">
+              <div class="full-content">
+                <div class="sentence-band" data-k="band">
+                  <span class="sentence-book" data-k="book"></span>
+                  <time class="sentence-date" data-k="date"></time>
+                </div>
+                <div class="view-body">
+                  <p class="view-text" data-k="text"></p>
+                  <p class="sentence-memo" data-k="memo" hidden></p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="view-body">
-            <p id="view-text" class="view-text"></p>
-            <p id="view-memo" class="sentence-memo" hidden></p>
+          <div class="page is-current">
+            <div class="full-scroll">
+              <div class="full-content">
+                <div class="sentence-band" data-k="band">
+                  <span class="sentence-book" data-k="book"></span>
+                  <time class="sentence-date" data-k="date"></time>
+                </div>
+                <div class="view-body">
+                  <p class="view-text" data-k="text"></p>
+                  <p class="sentence-memo" data-k="memo" hidden></p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="page is-next">
+            <div class="full-scroll">
+              <div class="full-content">
+                <div class="sentence-band" data-k="band">
+                  <span class="sentence-book" data-k="book"></span>
+                  <time class="sentence-date" data-k="date"></time>
+                </div>
+                <div class="view-body">
+                  <p class="view-text" data-k="text"></p>
+                  <p class="sentence-memo" data-k="memo" hidden></p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -383,8 +418,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="config.js?v=23"></script>
+  <script src="config.js?v=24"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script src="app.js?v=23"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

@@ -672,14 +672,22 @@ dialog.fullview::backdrop { background: transparent; }
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
-#view-memo { margin-top: 22px; font-size: .95rem; }
+.page .sentence-memo { margin-top: 22px; font-size: .95rem; }
 
 .full-scroll { touch-action: pan-y; outline: none; }
 dialog.fullview { outline: none; }
+/* 문장 창: 앞·지금·뒤 세 장 */
+.pager { flex: 1; min-height: 0; position: relative; overflow: hidden; --gap: 24px; }
+.pager-track { position: absolute; inset: 0; will-change: transform; }
+.page { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.page .full-scroll { flex: 1; }
+.page.is-prev { transform: translateX(calc(-100% - var(--gap))); }
+.page.is-next { transform: translateX(calc(100% + var(--gap))); }
+.page.empty { visibility: hidden; }
 /* 띠를 누르면 책 페이지로 */
-#view-band.tappable { cursor: pointer; }
-#view-band.tappable .sentence-book::after { content: " ›"; font-weight: 400; opacity: .8; }
-#view-band.tappable:active { filter: brightness(.95); }
+.page .sentence-band.tappable { cursor: pointer; }
+.page .sentence-band.tappable .sentence-book::after { content: " ›"; font-weight: 400; opacity: .8; }
+.page .sentence-band.tappable:active { filter: brightness(.95); }
 .view-nav { display: flex; align-items: center; gap: 2px; }
 .nav-btn {
   width: 44px;

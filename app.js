@@ -96,7 +96,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v23";
+  const APP_VERSION = "v24";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -1246,7 +1246,7 @@
     delete dlg.dataset.closing;
     dlg.style.transform = "";
     if (!dlg.open) dlg.showModal();
-    dlg.querySelector(".full-scroll").scrollTop = 0; // 긴 글도 처음부터
+    dlg.querySelectorAll(".full-scroll").forEach((el) => { el.scrollTop = 0; }); // 긴 글도 처음부터
     if (!canAnimate(dlg)) return;
     const W = window.innerWidth, H = dlg.clientHeight || window.innerHeight;
     let from = `inset(${H * 0.35}px 8% ${H * 0.35}px 8% round 14px)`;
@@ -1256,7 +1256,7 @@
       from = `inset(${top}px ${Math.max(0, W - r.right)}px ${bottom}px ${Math.max(0, r.left)}px round 14px)`;
     }
     dlg.animate([{ clipPath: from }, { clipPath: "inset(0px 0px 0px 0px round 0px)" }], { duration: 340, easing: EASE_OUT });
-    const content = dlg.querySelector(".full-content");
+    const content = dlg.querySelector(".is-current .full-content") || dlg.querySelector(".full-content");
     if (content) content.animate([{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }],
       { duration: 300, delay: 70, easing: EASE_OUT, fill: "backwards" });
   }
@@ -1281,14 +1281,17 @@
   }
 
   // 위에서 아래로 쓸어내리면 닫혀요. 글이 길어 스크롤을 내린 상태에서는 먼저 스크롤이 올라가요.
-  // onSide 가 있으면 옆으로 밀어서 앞뒤 문장으로 넘겨요. canSide(+1|-1) 로 넘길 문장이 있는지 알려줘요.
-  function attachSwipe(dlg, onClose, { onSide = null, canSide = () => false } = {}) {
-    const scroller = dlg.querySelector(".full-scroll");
-    const content = dlg.querySelector(".full-content");
+  // side 가 있으면 옆으로 끌기를 넘겨줘요: begin() 손을 댈 때, canSide(+1|-1) 넘길 곳이 있는지,
+  // move(dx) 끄는 중, end(dx, vel) 손을 뗄 때.
+  function attachSwipe(dlg, onClose, side = null) {
+    const findScroller = () => dlg.querySelector(".is-current .full-scroll") || dlg.querySelector(".full-scroll");
+    let scroller = findScroller();
     let startY = null, startX = 0, dy = 0, dx = 0, mode = null, decided = false, lastY = 0, lastX = 0, lastT = 0, vel = 0, fromScroller = false;
     const selecting = () => { const s = window.getSelection && window.getSelection(); return !!s && !s.isCollapsed; };
     const begin = (x, y, target) => {
       if (dlg.dataset.closing || target.closest("textarea, input, select")) { startY = null; return; }
+      if (side && side.begin) side.begin();
+      scroller = findScroller();
       startY = y; startX = x; dy = 0; dx = 0; mode = null; decided = false; vel = 0;
       lastY = y; lastX = x; lastT = performance.now();
       fromScroller = scroller.contains(target);
@@ -1301,7 +1304,7 @@
         decided = true;
         const atTop = !fromScroller || scroller.scrollTop <= 0;
         if (selecting()) { startY = null; return; }
-        if (onSide && Math.abs(ddx) > Math.abs(ddy)) { mode = "side"; startX = x; }
+        if (side && Math.abs(ddx) > Math.abs(ddy)) { mode = "side"; startX = x; }
         else if (ddy > 0 && Math.abs(ddy) >= Math.abs(ddx) && atTop) { mode = "down"; startY = y; }
         else { startY = null; return; }
       }
@@ -1313,10 +1316,11 @@
         dy = Math.max(0, y - startY);
         dlg.style.transform = `translateY(${dy}px)`;
       } else {
-        vel = (x - lastX) / dt;
+        // 속도는 최근 움직임에 무게를 두고 부드럽게
+        vel = vel * 0.4 + ((x - lastX) / dt) * 0.6;
         const raw = x - startX;
-        dx = canSide(raw < 0 ? 1 : -1) ? raw : raw * 0.3; // 넘길 문장이 없는 쪽은 고무줄처럼
-        content.style.transform = `translateX(${dx}px)`;
+        dx = side.canSide(raw < 0 ? 1 : -1) ? raw : raw * 0.3; // 넘길 문장이 없는 쪽은 고무줄처럼
+        side.move(dx);
       }
       lastY = y; lastX = x; lastT = now;
     };
@@ -1324,26 +1328,19 @@
       if (startY === null) return;
       const m = mode;
       startY = null; mode = null;
+      // 손을 멈췄다가 떼면 속도는 0
+      if (performance.now() - lastT > 80) vel = 0;
       if (m === "down") {
         if (dy > 110 || (vel > 0.5 && dy > 20)) {
           onClose(dy);
           if (dlg.open && !dlg.dataset.closing) snapBack(); // 닫지 않기로 했으면(저장 안 한 글) 제자리로
         } else snapBack();
-      } else if (m === "side") {
-        const dir = dx < 0 ? 1 : -1;
-        if ((Math.abs(dx) > 70 || (Math.abs(vel) > 0.45 && Math.abs(dx) > 20)) && canSide(dir)) onSide(dir, dx);
-        else snapSide();
-      }
+      } else if (m === "side") side.end(dx, vel);
     };
     const snapBack = () => {
       const at = dy;
       dlg.style.transform = "";
       if (at > 0 && canAnimate(dlg)) dlg.animate([{ transform: `translateY(${at}px)` }, { transform: "translateY(0)" }], { duration: 200, easing: EASE_OUT });
-    };
-    const snapSide = () => {
-      const at = dx;
-      content.style.transform = "";
-      if (at && canAnimate(content)) content.animate([{ transform: `translateX(${at}px)` }, { transform: "translateX(0)" }], { duration: 200, easing: EASE_OUT });
     };
     dlg.addEventListener("touchstart", (e) => {
       if (e.touches.length !== 1) { startY = null; return; }
@@ -1370,86 +1367,169 @@
 
   // ---------- 문장 보기 ----------
   // 문장을 누르면 화면 전체로 크게 보여주고, [편집하기]를 눌러야 고치기 창이 열려요.
-  // 옆으로 밀면 연 곳의 순서대로 넘겨요: 왼쪽으로 밀면 다음(목록 아래 = 더 예전 문장), 오른쪽은 이전.
+  // 앞·지금·뒤 세 장을 나란히 두고 손가락을 따라 함께 움직여서, 옆 문장이 이어 붙어 딸려 들어와요.
+  // 왼쪽으로 밀면 다음(목록 아래 = 더 예전 문장), 오른쪽은 이전.
   const viewDialog = $("view-dialog");
+  const viewTrack = $("view-track");
   let viewingId = null;
   let viewList = [];   // 넘길 문장 id 순서
   let viewIndex = 0;
-  function fillView(it) {
-    viewingId = it.id;
-    const band = $("view-band");
+  let slide = null;    // 진행 중인 넘김 { dir, anim }
+  const PAGE_IDS = { band: "view-band", book: "view-book", date: "view-date", text: "view-text", memo: "view-memo" };
+  const pageOf = (role) => viewTrack.querySelector(".page." + role);
+  const itemAt = (i) => (i >= 0 && i < viewList.length ? items.find((x) => x.id === viewList[i]) || null : null);
+  const pageGap = () => parseFloat(getComputedStyle(viewTrack.parentElement).getPropertyValue("--gap")) || 24;
+  const pageStride = () => (viewTrack.clientWidth || window.innerWidth) + pageGap();
+
+  function fillPage(page, it) {
+    page.classList.toggle("empty", !it);
+    if (!it) return;
+    const q = (k) => page.querySelector(`[data-k="${k}"]`);
+    const band = q("band");
     paintBook(band, it.book_title);
     const hasBook = !!(it.book_title || "").trim();
     band.classList.toggle("tappable", hasBook);
     if (hasBook) { band.setAttribute("role", "button"); band.tabIndex = 0; band.setAttribute("aria-label", `『${it.book_title}』 문장 모두 보기`); }
     else { band.removeAttribute("role"); band.removeAttribute("tabindex"); band.removeAttribute("aria-label"); }
-    $("view-book").textContent = bookLine(it);
-    $("view-date").textContent = fmtDate(it.created_at);
-    $("view-date").dateTime = it.created_at;
-    $("view-text").textContent = smartQuotes(it.content);
-    $("view-memo").hidden = !it.memo;
-    $("view-memo").textContent = it.memo ? smartQuotes(it.memo) : "";
-    paintBook($("view-memo"), it.book_title);
+    q("book").textContent = bookLine(it);
+    q("date").textContent = fmtDate(it.created_at);
+    q("date").dateTime = it.created_at;
+    q("text").textContent = smartQuotes(it.content);
+    const memo = q("memo");
+    memo.hidden = !it.memo;
+    memo.textContent = it.memo ? smartQuotes(it.memo) : "";
+    paintBook(memo, it.book_title);
+    page.querySelector(".full-scroll").scrollTop = 0;
+  }
+  // 지금 장에만 id 를 붙이고, 옆 장은 화면 읽기·탭 이동에서 빼요
+  function markCurrent() {
+    for (const page of viewTrack.querySelectorAll(".page")) {
+      const cur = page.classList.contains("is-current");
+      page.inert = !cur;
+      page.setAttribute("aria-hidden", String(!cur));
+      for (const [k, id] of Object.entries(PAGE_IDS)) {
+        const el = page.querySelector(`[data-k="${k}"]`);
+        if (cur) el.id = id; else if (el.id === id) el.removeAttribute("id");
+      }
+    }
+  }
+  function updateViewNav() {
     const n = viewList.length;
+    viewingId = viewList[viewIndex] || null;
     $("view-nav").hidden = n < 2;
     $("view-pos").textContent = `${viewIndex + 1} / ${n}`;
     $("view-prev").disabled = viewIndex <= 0;
     $("view-next").disabled = viewIndex >= n - 1;
   }
+  function fillView() {
+    fillPage(pageOf("is-current"), itemAt(viewIndex));
+    fillPage(pageOf("is-prev"), itemAt(viewIndex - 1));
+    fillPage(pageOf("is-next"), itemAt(viewIndex + 1));
+    markCurrent();
+    updateViewNav();
+  }
   function openView(id, fromEl, list) {
     const it = items.find((x) => x.id === id);
     if (!it) return;
+    cancelSlide();
     viewList = (list && list.length ? list : items.map((x) => x.id)).filter((x) => items.some((y) => y.id === x));
     viewIndex = Math.max(0, viewList.indexOf(id));
     if (viewList[viewIndex] !== id) { viewList = [id]; viewIndex = 0; }
-    fillView(it);
+    fillView();
     openFull(viewDialog, fromEl);
   }
-  const canStep = (d) => { const i = viewIndex + d; return i >= 0 && i < viewList.length; };
-  function stepView(d, fromX = 0) {
-    if (!canStep(d)) return;
-    const it = items.find((x) => x.id === viewList[viewIndex + d]);
-    if (!it) { viewList.splice(viewIndex + d, 1); return; }
-    const content = viewDialog.querySelector(".full-content");
-    const scroller = viewDialog.querySelector(".full-scroll");
-    const swap = () => { viewIndex += d; fillView(it); scroller.scrollTop = 0; };
-    content.getAnimations().forEach((a) => a.cancel());
-    if (!canAnimate(content)) { content.style.transform = ""; swap(); return; }
-    const W = viewDialog.clientWidth || window.innerWidth;
-    const out = content.animate([{ transform: `translateX(${fromX}px)`, opacity: 1 }, { transform: `translateX(${-d * W * 0.6}px)`, opacity: 0 }],
-      { duration: 160, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" });
-    content.style.transform = "";
-    out.onfinish = () => {
-      swap();
-      out.cancel();
-      content.animate([{ transform: `translateX(${d * W * 0.45}px)`, opacity: 0 }, { transform: "translateX(0)", opacity: 1 }], { duration: 230, easing: EASE_OUT });
-    };
+  const canStep = (d) => !!itemAt(viewIndex + d);
+
+  // 넘김이 끝나면 장 역할만 돌리고(요소는 그대로) 새로 빈 옆 장을 채워요
+  function settle(dir) {
+    const prev = pageOf("is-prev"), cur = pageOf("is-current"), next = pageOf("is-next");
+    const role = (el, r) => { el.classList.remove("is-prev", "is-current", "is-next"); el.classList.add(r); };
+    if (dir > 0) { role(cur, "is-prev"); role(next, "is-current"); role(prev, "is-next"); }
+    else { role(cur, "is-next"); role(prev, "is-current"); role(next, "is-prev"); }
+    viewTrack.style.transform = "";
+    viewIndex += dir;
+    if (dir > 0) fillPage(pageOf("is-next"), itemAt(viewIndex + 1));
+    else fillPage(pageOf("is-prev"), itemAt(viewIndex - 1));
+    markCurrent();
+    updateViewNav();
   }
-  const closeView = (from = 0) => closeFull(viewDialog, { from });
-  attachSwipe(viewDialog, closeView, { onSide: stepView, canSide: canStep });
+  // 진행 중인 넘김을 그 자리에서 끝내요 (연달아 넘길 때)
+  function finishSlide() {
+    if (!slide) return;
+    const s = slide; slide = null;
+    s.anim.onfinish = null;
+    s.anim.cancel();
+    if (s.dir) settle(s.dir); else viewTrack.style.transform = "";
+  }
+  function cancelSlide() {
+    if (slide) { slide.anim.onfinish = null; slide.anim.cancel(); slide = null; }
+    viewTrack.style.transform = "";
+  }
+  function animateTrack(from, to, duration, easing, dir) {
+    viewTrack.style.transform = `translateX(${to}px)`; // 끝난 모습을 먼저 정해 두고
+    const anim = viewTrack.animate([{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }], { duration, easing });
+    slide = { dir, anim };
+    anim.onfinish = finishSlide;
+  }
+  // dir 쪽으로 넘겨요. fromX: 이미 끌어 온 거리, vel: 손을 뗀 속도(px/ms)
+  function slideTo(dir, fromX = 0, vel = 0) {
+    finishSlide();
+    if (!canStep(dir)) { snapTrack(fromX); return; }
+    if (!canAnimate(viewTrack)) { viewTrack.style.transform = ""; settle(dir); return; }
+    const target = -dir * pageStride();
+    const remain = Math.abs(target - fromX);
+    // 감속 곡선의 처음 기울기(약 4배)가 손을 뗀 속도와 이어지도록 시간을 정해요
+    const v = Math.abs(vel);
+    const duration = v > 0.05 ? Math.min(380, Math.max(200, (remain * 4) / v)) : 320;
+    animateTrack(fromX, target, duration, "cubic-bezier(.22,.9,.3,1)", dir);
+  }
+  function snapTrack(fromX) {
+    if (!fromX || !canAnimate(viewTrack)) { viewTrack.style.transform = ""; return; }
+    animateTrack(fromX, 0, 240, EASE_OUT, 0);
+  }
+  const viewSide = {
+    begin: finishSlide,
+    canSide: canStep,
+    move: (dx) => { viewTrack.style.transform = `translateX(${dx}px)`; },
+    end: (dx, vel) => {
+      const dir = dx < 0 ? 1 : -1;
+      const W = viewTrack.clientWidth || window.innerWidth;
+      const flick = Math.abs(vel) > 0.3 && Math.abs(dx) > 20 && Math.sign(vel) === Math.sign(dx);
+      if (canStep(dir) && (Math.abs(dx) > W * 0.25 || flick)) slideTo(dir, dx, flick ? vel : 0);
+      else snapTrack(dx);
+    },
+  };
+  const closeView = (from = 0) => { finishSlide(); closeFull(viewDialog, { from }); };
+  attachSwipe(viewDialog, closeView, viewSide);
   $("view-close").addEventListener("click", () => closeView());
-  $("view-prev").addEventListener("click", () => stepView(-1));
-  $("view-next").addEventListener("click", () => stepView(1));
-  viewDialog.addEventListener("keydown", (e) => {
-    if (e.target.closest("input, textarea, select")) return;
-    if (e.key === "ArrowLeft") { e.preventDefault(); stepView(-1); }
-    else if (e.key === "ArrowRight") { e.preventDefault(); stepView(1); }
+  $("view-prev").addEventListener("click", () => slideTo(-1));
+  $("view-next").addEventListener("click", () => slideTo(1));
+  // 넘기면 포커스가 있던 장이 옆으로 빠지므로, 키보드는 문서 전체에서 받아요 (문장 창이 맨 위일 때만)
+  document.addEventListener("keydown", (e) => {
+    if (!viewDialog.open || [...document.querySelectorAll("dialog[open]")].some((d) => d !== viewDialog && d !== $("book-dialog"))) return;
+    if (e.target.closest && e.target.closest("input, textarea, select")) return;
+    if (e.key === "ArrowLeft") { e.preventDefault(); slideTo(-1); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); slideTo(1); }
   });
   $("view-edit").addEventListener("click", () => {
+    finishSlide();
     const id = viewingId;
     closeFull(viewDialog, { instant: true });
     if (id) openEdit(id);
   });
   // 띠(책 제목)를 누르면 그 책의 문장을 모두 모은 책 페이지로
   function viewBandTap() {
+    finishSlide();
     const it = items.find((x) => x.id === viewingId);
     const t = it && (it.book_title || "").trim();
     if (!t) return;
     if (bookDialog.open && bookTitle === t) { closeView(); return; } // 책 페이지에서 왔으면 돌아가기
     openBook(t, $("view-band"));
   }
-  $("view-band").addEventListener("click", viewBandTap);
-  $("view-band").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); viewBandTap(); } });
+  viewTrack.addEventListener("click", (e) => { if (e.target.closest(".is-current .sentence-band.tappable")) viewBandTap(); });
+  viewTrack.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.closest(".is-current .sentence-band.tappable")) { e.preventDefault(); viewBandTap(); }
+  });
 
   // ---------- 책 페이지: 한 책의 문장을 페이지 순으로 ----------
   const bookDialog = $("book-dialog");
