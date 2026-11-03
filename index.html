@@ -20,7 +20,7 @@
   <!-- 문장 글꼴: 마루부리 (네이버, OFL 무료 글꼴) -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@kfonts/maruburi@0.1.0/index.css">
-  <link rel="stylesheet" href="styles.css?v=24">
+  <link rel="stylesheet" href="styles.css?v=25">
 </head>
 <body>
   <div id="app">
@@ -115,7 +115,7 @@
 
         <label class="field">
           <span>책 제목<i id="compose-book-swatch" class="swatch" aria-hidden="true"></i></span>
-          <input id="compose-book" type="text" list="book-list" autocomplete="off" enterkeyhint="next" placeholder="예) 데미안">
+          <input id="compose-book" type="text" autocomplete="off" enterkeyhint="next" placeholder="예) 데미안">
         </label>
         <div class="compose-meta">
           <label class="field grow">
@@ -127,7 +127,6 @@
             <input id="compose-page" type="text" inputmode="numeric" pattern="[0-9\-~, ]*" autocomplete="off" enterkeyhint="done" placeholder="123">
           </label>
         </div>
-        <datalist id="book-list"></datalist>
         <datalist id="author-list"></datalist>
 
         <button id="compose-submit" class="btn primary block" type="submit">문장 담기</button>
@@ -318,7 +317,7 @@
           <div id="note-new-fields" class="note-new-fields" hidden>
             <label class="field">
               <span>책 제목</span>
-              <input id="note-title" type="text" list="book-list" autocomplete="off" placeholder="예) 데미안">
+              <input id="note-title" type="text" autocomplete="off" placeholder="예) 데미안">
             </label>
             <label class="field">
               <span>작가 <span class="muted">(선택)</span></span>
@@ -352,7 +351,7 @@
       <textarea id="edit-content" class="sentence-input" rows="5" required></textarea>
       <label class="field">
         <span>책 제목</span>
-        <input id="edit-book" type="text" list="book-list" autocomplete="off">
+        <input id="edit-book" type="text" autocomplete="off">
       </label>
       <div class="compose-meta">
         <label class="field grow">
@@ -418,8 +417,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="config.js?v=24"></script>
+  <script src="config.js?v=25"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script src="app.js?v=24"></script>
+  <script src="app.js?v=25"></script>
 </body>
 </html>

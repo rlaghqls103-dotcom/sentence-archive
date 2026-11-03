@@ -96,7 +96,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v24";
+  const APP_VERSION = "v25";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -677,9 +677,6 @@
 
     // 작가 자동완성
     $("author-list").replaceChildren(...[...new Set(bookAuthor.values())].map((a) => Object.assign(document.createElement("option"), { value: a })));
-    // 책 제목 자동완성
-    const dl = $("book-list");
-    dl.replaceChildren(...books.map(([t]) => Object.assign(document.createElement("option"), { value: t })));
 
     // 책별 보기 칩
     const chips = $("book-chips");
@@ -1234,6 +1231,188 @@
       cropReadBtn.disabled = !cropBox;
     }
   });
+
+  // ---------- 책 제목 추천 ----------
+  // 책 제목 칸에 몇 글자만 쳐도 예전에 쓴 책을 작가와 함께 보여주고, 고르면 작가도 채워요.
+  // 한글은 치는 도중에 글자가 바뀌어서("쓰" → "쓱" → "쓰가") 그 중간 모양으로도 맞춰요.
+  const HBASE = 0xac00;
+  const CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+  const JONG = ["", "ㄱ", "ㄲ", "ㄳ", "ㄴ", "ㄵ", "ㄶ", "ㄷ", "ㄹ", "ㄺ", "ㄻ", "ㄼ", "ㄽ", "ㄾ", "ㄿ", "ㅀ", "ㅁ", "ㅂ", "ㅄ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"];
+  // 겹받침: [남는 받침, 다음 글자로 넘어가는 자음]
+  const JONG_SPLIT = { "ㄳ": ["ㄱ", "ㅅ"], "ㄵ": ["ㄴ", "ㅈ"], "ㄶ": ["ㄴ", "ㅎ"], "ㄺ": ["ㄹ", "ㄱ"], "ㄻ": ["ㄹ", "ㅁ"], "ㄼ": ["ㄹ", "ㅂ"], "ㄽ": ["ㄹ", "ㅅ"], "ㄾ": ["ㄹ", "ㅌ"], "ㄿ": ["ㄹ", "ㅍ"], "ㅀ": ["ㄹ", "ㅎ"], "ㅄ": ["ㅂ", "ㅅ"] };
+  function hsplit(ch) {
+    const c = (ch || "").charCodeAt(0) - HBASE;
+    if (!(c >= 0 && c <= 11171)) return null;
+    return { cho: Math.floor(c / 588), jung: Math.floor((c % 588) / 28), jong: c % 28 };
+  }
+  const initialsOf = (s) => [...s].map((ch) => { const h = hsplit(ch); return h ? CHO[h.cho] : ch; }).join("");
+  const isCho = (ch) => CHO.includes(ch);
+
+  // 제목이 입력으로 시작하는지: 0 그대로 시작, 1 치는 중인 마지막 글자까지 맞음, 2 초성으로 맞음, -1 아님
+  function prefixScore(t, q) {
+    if (t.startsWith(q)) return 0;
+    const head = q.slice(0, -1), last = q.slice(-1);
+    if (t.startsWith(head)) {
+      const h = hsplit(last), th = hsplit(t.charAt(head.length));
+      if (h && th && th.cho === h.cho && th.jung === h.jung) {
+        if (h.jong === 0) return 1; // "쓰" → "쓸쓸한"
+        const J = JONG[h.jong];
+        if (JONG[th.jong] && JONG_SPLIT[JONG[th.jong]] && JONG_SPLIT[JONG[th.jong]][0] === J) return 1; // "일" → "읽기"
+        const [keep, move] = JONG_SPLIT[J] || ["", J];
+        if (th.jong === JONG.indexOf(keep)) { // "쓱" → "쓰가루", "읽" → "일곱"
+          const nx = hsplit(t.charAt(head.length + 1));
+          if (nx && CHO[nx.cho] === move) return 1;
+        }
+      }
+      if (isCho(last)) { const th2 = hsplit(t.charAt(head.length)); if (th2 && CHO[th2.cho] === last) return 1; } // "쓰ㄱ"
+    }
+    if ([...q].every(isCho) && initialsOf(t).startsWith(q)) return 2; // "ㅆㄱ"
+    return -1;
+  }
+  function matchScore(title, author, q) {
+    const t = title.toLowerCase();
+    const p = prefixScore(t, q);
+    if (p >= 0) return p;
+    if (t.includes(q)) return 3;
+    // 작가 이름: 앞부분이 맞거나, 두 글자 이상이 들어 있으면 ("무" 한 글자로 "오사무"까지 나오지 않게)
+    const a = (author || "").toLowerCase();
+    if (a && (a.startsWith(q) || prefixScore(a, q) >= 0 || (q.length >= 2 && a.includes(q)))) return 4;
+    return -1;
+  }
+  // 고를 수 있는 책: 최근에 문장을 쓴 순서, 그 뒤에 감상문·작가만 있는 책
+  function bookCandidates() {
+    const counts = new Map(bookStats());
+    const titles = [...counts.keys()];
+    for (const t of [...notes.keys(), ...bookAuthor.keys()]) if (t && !counts.has(t) && !titles.includes(t)) titles.push(t);
+    return titles.map((t, i) => ({ t, au: authorOf(t), n: counts.get(t) || 0, i }));
+  }
+
+  let suggestSeq = 0;
+  // next(c): 고른 뒤 옮겨 갈 칸 (없으면 그대로)
+  function attachBookSuggest(input, authorInput, { onPick = () => {}, next = () => null } = {}) {
+    input.removeAttribute("list");
+    const id = "book-suggest-" + (++suggestSeq);
+    const anchor = document.createElement("div");
+    anchor.className = "suggest-anchor";
+    const ul = document.createElement("ul");
+    ul.className = "suggest";
+    ul.id = id;
+    ul.setAttribute("role", "listbox");
+    ul.setAttribute("aria-label", "책 제목 추천");
+    ul.hidden = true;
+    anchor.append(ul);
+    (input.closest("label") || input).after(anchor);
+    input.setAttribute("role", "combobox");
+    input.setAttribute("aria-autocomplete", "list");
+    input.setAttribute("aria-controls", id);
+    input.setAttribute("aria-expanded", "false");
+    let shown = [], active = -1, blurTimer = null;
+
+    const close = () => {
+      ul.hidden = true; shown = []; active = -1;
+      input.setAttribute("aria-expanded", "false");
+      input.removeAttribute("aria-activedescendant");
+    };
+    const setActive = (k) => {
+      active = k;
+      [...ul.children].forEach((li, j) => li.setAttribute("aria-selected", String(j === k)));
+      if (k >= 0) input.setAttribute("aria-activedescendant", `${id}-${k}`); else input.removeAttribute("aria-activedescendant");
+    };
+    const row = (c, k, q) => {
+      const li = document.createElement("li");
+      li.id = `${id}-${k}`;
+      li.className = "suggest-item";
+      li.setAttribute("role", "option");
+      li.setAttribute("aria-selected", "false");
+      li.dataset.k = k;
+      const dot = document.createElement("i");
+      dot.className = "suggest-dot";
+      const col = bookColor(c.t);
+      if (col) dot.style.background = col.bg;
+      const title = document.createElement("span");
+      title.className = "suggest-title";
+      // 앞부분이 그대로 맞으면 맞은 부분을 굵게
+      if (q && c.t.toLowerCase().startsWith(q)) {
+        const b = document.createElement("b");
+        b.textContent = c.t.slice(0, q.length);
+        title.append("『", b, c.t.slice(q.length), "』");
+      } else title.textContent = `『${c.t}』`;
+      const au = document.createElement("span");
+      au.className = "suggest-author";
+      au.textContent = c.au || "";
+      li.append(dot, title, au);
+      if (c.n) { const n = document.createElement("span"); n.className = "suggest-n"; n.textContent = `문장 ${c.n}`; li.append(n); }
+      return li;
+    };
+    const update = () => {
+      clearTimeout(blurTimer);
+      const raw = input.value.trim();
+      const q = raw.toLowerCase();
+      const cands = bookCandidates();
+      let list;
+      if (!q) list = cands.slice(0, 5);
+      else if (cands.some((c) => c.t === raw)) list = []; // 이미 정확히 맞으면 닫기
+      else {
+        list = cands.map((c) => ({ ...c, s: matchScore(c.t, c.au, q) }))
+          .filter((c) => c.s >= 0)
+          .sort((a, b) => a.s - b.s || a.i - b.i)
+          .slice(0, 6);
+      }
+      if (!list.length) { close(); return; }
+      shown = list;
+      ul.replaceChildren(...list.map((c, k) => row(c, k, q)));
+      setActive(-1);
+      ul.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+      reveal();
+    };
+    // 아이폰 키보드나 아래 탭바에 목록이 가리면, 입력칸이 위로 올라가도록 조금 스크롤해요
+    const reveal = () => requestAnimationFrame(() => {
+      if (ul.hidden) return;
+      const vv = window.visualViewport;
+      const top = vv ? vv.offsetTop : 0;
+      let limit = (vv ? vv.offsetTop + vv.height : window.innerHeight) - 8;
+      const bar = $("tabbar");
+      if (bar && !bar.hidden && !input.closest("dialog")) limit = Math.min(limit, bar.getBoundingClientRect().top - 8);
+      const over = ul.getBoundingClientRect().bottom - limit;
+      const room = input.getBoundingClientRect().top - top - 12; // 입력칸이 화면 위로 넘어가지 않을 만큼만
+      const delta = Math.min(over, room);
+      if (delta <= 0) return;
+      const box = input.closest(".full-scroll, dialog");
+      if (box && box.scrollHeight > box.clientHeight) box.scrollTop += delta;
+      else window.scrollBy(0, delta);
+    });
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", reveal);
+    const pick = (c) => {
+      input.value = c.t;
+      if (c.au && authorInput) authorInput.value = c.au; // 고른 책의 작가로 채워요
+      close();
+      input.dispatchEvent(new Event("input", { bubbles: true })); // 책 색 점·자동 채우기 갱신
+      close();
+      onPick(c);
+      const nx = next(c);
+      if (nx) nx.focus();
+    };
+
+    input.addEventListener("input", update);
+    input.addEventListener("compositionend", update);
+    input.addEventListener("focus", update);
+    input.addEventListener("blur", () => { blurTimer = setTimeout(close, 150); });
+    ul.addEventListener("pointerdown", (e) => e.preventDefault()); // 누르는 동안 입력칸이 포커스를 잃지 않게
+    ul.addEventListener("mousedown", (e) => e.preventDefault());
+    ul.addEventListener("click", (e) => {
+      const li = e.target.closest(".suggest-item");
+      if (li && shown[+li.dataset.k]) pick(shown[+li.dataset.k]);
+    });
+    input.addEventListener("keydown", (e) => {
+      if (ul.hidden || e.isComposing) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); setActive((active + 1) % shown.length); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); setActive(active <= 0 ? shown.length - 1 : active - 1); }
+      else if (e.key === "Enter" && active >= 0) { e.preventDefault(); pick(shown[active]); }
+      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
+    });
+    return { close, update };
+  }
 
   // ---------- 화면 전체 창: 열기·닫기 애니메이션, 아래로 쓸어 닫기 ----------
   // 누른 카드 자리에서 화면 전체로 펼쳐지고, 닫을 때는 아래로 내려가요.
@@ -1918,4 +2097,12 @@
     dialog.close();
     toast("삭제했어요");
   });
+
+  // 책 제목 칸 세 곳에 추천 목록 달기 (문장 담기 · 고치기 · 감상문 새 책)
+  attachBookSuggest($("compose-book"), $("compose-author"), {
+    onPick: (c) => { if (c.au) authorAuto = true; },
+    next: (c) => (c.au ? $("compose-page") : $("compose-author")),
+  });
+  attachBookSuggest($("edit-book"), $("edit-author"), { next: (c) => (c.au ? $("edit-page") : $("edit-author")) });
+  attachBookSuggest($("note-title"), $("note-author"), { next: (c) => (c.au ? $("note-body") : $("note-author")) });
 })();
