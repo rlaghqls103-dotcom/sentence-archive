@@ -92,11 +92,13 @@
   function show(name) {
     for (const key of Object.keys(views)) views[key].hidden = key !== name;
     $("tabbar").hidden = name !== "main";
+    const boot = $("boot");
+    if (boot) boot.remove(); // 시작 화면은 처음 한 번만
     document.documentElement.classList.toggle("has-tabbar", name === "main");
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v25";
+  const APP_VERSION = "v26";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -2105,4 +2107,21 @@
   });
   attachBookSuggest($("edit-book"), $("edit-author"), { next: (c) => (c.au ? $("edit-page") : $("edit-author")) });
   attachBookSuggest($("note-title"), $("note-author"), { next: (c) => (c.au ? $("note-body") : $("note-author")) });
+
+  // ---------- 빠른 시작 ----------
+  // Supabase 는 시작할 때 로그인 토큰을 인터넷으로 새로 받은 뒤에야 알려줘서(오래 안 쓰면 거의 매번),
+  // 그동안 흰 화면이 보였어요. 이 기기에 저장된 로그인이 있으면 저장해 둔 문장으로 바로 그리고,
+  // 동기화는 토큰이 준비되면 이어서 해요. (토큰이 무효면 onAuthStateChange 가 로그인 화면으로 바꿔요)
+  if (!started) {
+    try {
+      const ref = new URL(cfg.SUPABASE_URL).hostname.split(".")[0];
+      const saved = JSON.parse(localStorage.getItem(`sb-${ref}-auth-token`) || "null");
+      const savedUser = saved && (saved.user || (saved.currentSession && saved.currentSession.user));
+      if (savedUser && savedUser.id) {
+        started = true;
+        user = savedUser;
+        enterMain();
+      }
+    } catch { /* 저장된 로그인을 못 읽으면 평소처럼 기다려요 */ }
+  }
 })();

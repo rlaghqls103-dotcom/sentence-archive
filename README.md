@@ -119,4 +119,5 @@
 | `supabase/schema.sql` | 데이터베이스 설정 |
 | `supabase/functions/ocr/index.ts` | 구글 글자 인식 중간 서버 |
 
-> 앱 파일을 고친 뒤에는 `sw.js`의 `CACHE` 버전을 올려주세요(예: `v1` → `v2`).
+> 앱 파일을 고친 뒤에는 버전 숫자를 세 군데 같이 올려주세요: `sw.js`의 `V`, `index.html`의 `?v=`, `app.js`의 `APP_VERSION`.
+> 앱은 켤 때 저장해 둔 파일로 바로 열리고, `sw.js`가 바뀐 것을 알아채면 새 파일을 받아 한 번 새로고침해요.

@@ -127,6 +127,17 @@ body {
   place-items: center;
 }
 
+/* 시작 화면: 헤더와 같은 자리·모양이라 메인 화면으로 자연스럽게 이어져요 */
+.boot {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 16px) calc(env(safe-area-inset-right) + 16px) 0 calc(env(safe-area-inset-left) + 16px);
+}
+.boot .brand { margin: 0; }
+.boot .shelf span { animation: boot-pulse 1.2s ease-in-out infinite alternate; }
+.boot .shelf span:nth-child(even) { animation-delay: .3s; }
+@keyframes boot-pulse { from { opacity: 1; } to { opacity: .45; } }
+
 /* ---------- 공통 요소 ---------- */
 
 .paper-card {
