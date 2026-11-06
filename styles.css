@@ -678,6 +678,7 @@ dialog.fullview {
 dialog.fullview::backdrop { background: transparent; }
 .full-inner { display: flex; flex-direction: column; height: 100%; margin: 0; }
 .grabber {
+  outline: none;
   flex: none;
   width: 40px;
   height: 5px;

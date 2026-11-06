@@ -22,7 +22,7 @@
   <!-- 로그인 토큰·문장 동기화 서버에 미리 연결 -->
   <link rel="preconnect" href="https://tfbgowfwrwosqywemrhp.supabase.co" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@kfonts/maruburi@0.1.0/index.css">
-  <link rel="stylesheet" href="styles.css?v=28">
+  <link rel="stylesheet" href="styles.css?v=29">
 </head>
 <body>
   <!-- 시작 화면: 앱이 준비되기 전 잠깐 보여요 -->
@@ -217,7 +217,7 @@
   <!-- 문장 보기 창: 전체 문장 + [편집하기] -->
   <dialog id="view-dialog" class="fullview" aria-label="문장 보기">
     <div class="full-inner">
-      <div class="grabber" aria-hidden="true"></div>
+      <div class="grabber" tabindex="-1" autofocus aria-hidden="true"></div>
       <!-- 앞·지금·뒤 세 장을 나란히 두고, 손가락을 따라 함께 움직여요 -->
       <div class="pager">
         <div id="view-track" class="pager-track">
@@ -286,7 +286,7 @@
   <!-- 책 페이지: 한 책의 문장을 페이지 순으로 -->
   <dialog id="book-dialog" class="fullview" aria-label="책 페이지">
     <div class="full-inner">
-      <div class="grabber" aria-hidden="true"></div>
+      <div class="grabber" tabindex="-1" autofocus aria-hidden="true"></div>
       <div class="full-scroll">
         <div class="full-content">
           <div class="book-cover">
@@ -314,7 +314,7 @@
   <!-- 감상문 쓰기 창 -->
   <dialog id="note-dialog" class="fullview" aria-label="감상문 쓰기">
     <form id="note-form" class="full-inner" novalidate>
-      <div class="grabber" aria-hidden="true"></div>
+      <div class="grabber" tabindex="-1" autofocus aria-hidden="true"></div>
       <div class="full-scroll">
         <div class="full-content">
           <div id="note-band" class="sentence-band">
@@ -436,8 +436,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script defer src="config.js?v=28"></script>
+  <script defer src="config.js?v=29"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script defer src="app.js?v=28"></script>
+  <script defer src="app.js?v=29"></script>
 </body>
 </html>

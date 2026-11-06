@@ -98,7 +98,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v28";
+  const APP_VERSION = "v29";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -1427,6 +1427,13 @@
     delete dlg.dataset.closing;
     dlg.style.transform = "";
     if (!dlg.open) dlg.showModal();
+    // 창이 열리면 브라우저가 첫 입력칸에 커서를 둬서, 아이폰은 '다 읽은 날' 달력이나 키보드를 바로 띄워요. 손잡이로 옮겨요
+    const first = document.activeElement;
+    if (first && dlg.contains(first) && first.matches("input, textarea, select")) {
+      first.blur();
+      const g = dlg.querySelector(".grabber");
+      if (g) g.focus({ preventScroll: true });
+    }
     dlg.querySelectorAll(".full-scroll").forEach((el) => { el.scrollTop = 0; }); // 긴 글도 처음부터
     if (!canAnimate(dlg)) return;
     const W = window.innerWidth, H = dlg.clientHeight || window.innerHeight;
