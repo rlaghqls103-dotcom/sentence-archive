@@ -98,7 +98,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v31";
+  const APP_VERSION = "v32";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -260,6 +260,72 @@
       }
     } catch (err) {
       authMsg.textContent = authErrorText(err);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ---------- 계정 설정: 이메일 · 비밀번호 바꾸기 ----------
+  // 지금 비밀번호로 본인 확인을 한 뒤에 바꿔요 (폰을 잠깐 빌린 사람이 바꾸지 못하게)
+  const accountDialog = $("account-dialog");
+  function accountMsg(text, ok = false) {
+    const el = $("account-message");
+    el.textContent = text;
+    el.classList.toggle("ok", ok);
+  }
+  $("account-btn").addEventListener("click", () => {
+    $("account-form").reset();
+    $("account-current").textContent = (user && user.email) || "";
+    $("account-username").value = (user && user.email) || "";
+    accountMsg("");
+    accountDialog.showModal();
+  });
+  $("account-cancel").addEventListener("click", () => accountDialog.close());
+  accountDialog.addEventListener("click", (e) => { if (e.target === accountDialog) accountDialog.close(); });
+  $("account-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const newEmail = $("account-email").value.trim();
+    const pw = $("account-password").value, pw2 = $("account-password2").value;
+    const current = $("account-current-password").value;
+    const curEmail = (user && user.email) || "";
+    const emailChange = newEmail && newEmail.toLowerCase() !== curEmail.toLowerCase();
+    if (!emailChange && !pw) { accountMsg("바꿀 이메일이나 새 비밀번호를 적어 주세요."); return; }
+    if (emailChange && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) { accountMsg("이메일 형식을 확인해 주세요."); return; }
+    if (pw && pw.length < 6) { accountMsg("새 비밀번호는 6자 이상이어야 해요."); return; }
+    if (pw && pw !== pw2) { accountMsg("새 비밀번호 두 칸이 서로 달라요."); return; }
+    if (pw && pw === current) { accountMsg("새 비밀번호가 지금 비밀번호와 같아요."); return; }
+    if (!current) { accountMsg("본인 확인을 위해 지금 비밀번호를 적어 주세요."); $("account-current-password").focus(); return; }
+    const btn = $("account-save");
+    btn.disabled = true;
+    accountMsg("확인하는 중…");
+    try {
+      // 1) 본인 확인
+      const { error: checkError } = await sb.auth.signInWithPassword({ email: curEmail, password: current });
+      if (checkError) { accountMsg(/Invalid login credentials/i.test(checkError.message || "") ? "지금 비밀번호가 맞지 않아요." : authErrorText(checkError)); return; }
+      // 2) 바꾸기
+      const changes = {};
+      if (emailChange) changes.email = newEmail;
+      if (pw) changes.password = pw;
+      const { data, error } = await sb.auth.updateUser(changes);
+      if (error) {
+        const m = error.message || "";
+        accountMsg(/already been registered|already registered|exists/i.test(m) ? "이미 다른 계정이 쓰는 이메일이에요."
+          : /should be different/i.test(m) ? "새 비밀번호가 지금 비밀번호와 같아요."
+          : authErrorText(error));
+        return;
+      }
+      if (data && data.user) user = data.user;
+      const pending = emailChange && data && data.user && data.user.new_email && data.user.email !== newEmail;
+      const parts = [];
+      if (pw) parts.push("비밀번호를 바꿨어요");
+      if (emailChange) parts.push(pending ? `${newEmail} 로 확인 메일을 보냈어요. 메일의 링크를 누르면 이메일이 바뀌어요` : `이제 ${newEmail} 로 로그인해요`);
+      accountMsg(parts.join(". ") + ".", true);
+      $("account-current").textContent = (user && user.email) || curEmail;
+      $("account-username").value = (user && user.email) || curEmail;
+      ["account-email", "account-password", "account-password2", "account-current-password"].forEach((id) => { $(id).value = ""; });
+      toast(pw && !emailChange ? "비밀번호를 바꿨어요" : "계정 정보를 바꿨어요");
+    } catch {
+      accountMsg("인터넷 연결을 확인해 주세요.");
     } finally {
       btn.disabled = false;
     }

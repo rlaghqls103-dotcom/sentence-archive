@@ -930,6 +930,7 @@ dialog.fullview { outline: none; }
   padding: 3px 8px;
 }
 .app-footer .btn.link { color: var(--ink-faint); font-size: .8rem; }
+.footer-links { display: flex; gap: 14px; }
 
 /* ---------- 사진 보기 ---------- */
 
