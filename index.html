@@ -22,7 +22,7 @@
   <!-- 로그인 토큰·문장 동기화 서버에 미리 연결 -->
   <link rel="preconnect" href="https://tfbgowfwrwosqywemrhp.supabase.co" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@kfonts/maruburi@0.1.0/index.css">
-  <link rel="stylesheet" href="styles.css?v=30">
+  <link rel="stylesheet" href="styles.css?v=31">
 </head>
 <body>
   <!-- 시작 화면: 앱이 준비되기 전 잠깐 보여요 -->
@@ -294,13 +294,13 @@
             <p id="book-cover-author" class="book-cover-author"></p>
             <p id="book-cover-meta" class="book-cover-meta"></p>
           </div>
-          <div id="book-note" class="book-note">
+          <!-- 감상문: 누르면 화면 전체로 크게 -->
+          <div id="book-note" class="book-note" role="button" tabindex="0">
             <div class="book-note-head">
               <span class="book-note-label">감상문</span>
-              <span id="book-note-date" class="book-note-date"></span>
+              <span id="book-note-hint" class="book-note-hint">크게 보기 ›</span>
             </div>
             <p id="book-note-text" class="book-note-text"></p>
-            <button id="book-note-btn" class="btn ghost small" type="button">감상문 쓰기</button>
           </div>
           <ul id="book-items" class="book-items"></ul>
         </div>
@@ -312,7 +312,7 @@
   </dialog>
 
   <!-- 감상문 쓰기 창 -->
-  <dialog id="note-dialog" class="fullview" aria-label="감상문 쓰기">
+  <dialog id="note-dialog" class="fullview" data-mode="read" aria-label="감상문">
     <form id="note-form" class="full-inner" novalidate>
       <div class="grabber" tabindex="-1" autofocus aria-hidden="true"></div>
       <div class="full-scroll">
@@ -321,41 +321,40 @@
             <span id="note-book" class="sentence-book"></span>
             <span class="sentence-date">감상문</span>
           </div>
-          <div id="note-new-fields" class="note-new-fields" hidden>
-            <label class="field">
-              <span>책 제목</span>
-              <input id="note-title" type="text" autocomplete="off" placeholder="예) 데미안">
-            </label>
-            <label class="field">
-              <span>작가 <span class="muted">(선택)</span></span>
-              <input id="note-author" type="text" list="author-list" autocomplete="off" placeholder="예) 헤르만 헤세">
-            </label>
-          </div>
           <!-- 다른 기기에서 바뀌었을 때 / 예전에 쓰다 만 글이 있을 때 안내 -->
           <div id="note-notice" class="note-notice" role="status" hidden>
             <span id="note-notice-text"></span>
             <button id="note-notice-act" class="btn soft small" type="button"></button>
           </div>
-          <label class="field note-date-field">
-            <span>다 읽은 날 <span class="muted">(선택)</span></span>
-            <input id="note-finished" type="date">
-          </label>
-          <textarea id="note-body" class="note-body" rows="10" placeholder="이 책을 읽고 남은 생각을 자유롭게 적어 보세요."></textarea>
-          <div class="note-meta-row">
+          <!-- 읽기: 크게, 책처럼 -->
+          <article id="note-read" class="note-read">
+            <div id="note-read-text" class="note-read-text"></div>
+            <p id="note-read-meta" class="note-read-meta"></p>
+          </article>
+          <!-- 쓰기 -->
+          <div id="note-edit" class="note-edit">
+            <div id="note-new-fields" class="note-new-fields" hidden>
+              <label class="field">
+                <span>책 제목</span>
+                <input id="note-title" type="text" autocomplete="off" placeholder="예) 데미안">
+              </label>
+              <label class="field">
+                <span>작가 <span class="muted">(선택)</span></span>
+                <input id="note-author" type="text" list="author-list" autocomplete="off" placeholder="예) 헤르만 헤세">
+              </label>
+            </div>
+            <textarea id="note-body" class="note-body" rows="12" placeholder="이 책을 읽고 남은 생각을 자유롭게 적어 보세요."></textarea>
             <p id="note-meta" class="muted small note-meta"></p>
-            <button id="note-history-btn" class="btn link small" type="button" hidden>이전 버전</button>
-          </div>
-          <div id="note-history" class="note-history" hidden>
-            <p class="note-history-head">이전 버전 <span class="muted small">고치거나 지우기 전의 글이 서버에 보관돼요</span></p>
-            <ul id="note-history-list" class="note-history-list"></ul>
           </div>
         </div>
       </div>
       <div class="full-actions">
         <button id="note-close" class="btn ghost" type="button">닫기</button>
-        <button id="note-delete" class="btn danger" type="button">지우기</button>
+        <button id="note-size" class="btn ghost note-size mode-read" type="button" aria-label="글자 크기 바꾸기" title="글자 크기">가<span class="note-size-big">가</span></button>
+        <button id="note-delete" class="btn danger mode-edit" type="button">지우기</button>
         <span class="spacer"></span>
-        <button id="note-save" class="btn primary" type="submit">저장</button>
+        <button id="note-edit-btn" class="btn primary mode-read" type="button">편집하기</button>
+        <button id="note-save" class="btn primary mode-edit" type="submit">저장</button>
       </div>
     </form>
   </dialog>
@@ -436,8 +435,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script defer src="config.js?v=30"></script>
+  <script defer src="config.js?v=31"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script defer src="app.js?v=30"></script>
+  <script defer src="app.js?v=31"></script>
 </body>
 </html>

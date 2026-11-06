@@ -770,8 +770,10 @@ dialog.fullview { outline: none; }
   background: var(--paper-sunk);
 }
 .book-note-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.book-note { cursor: pointer; transition: background .15s; }
+.book-note:hover, .book-note:active { background: var(--accent-wash); }
+.book-note-hint { font-size: .78rem; color: var(--ink-faint); }
 .book-note-label { font-size: .8rem; font-weight: 600; color: var(--ink-soft); letter-spacing: .02em; }
-.book-note-date { font-size: .78rem; color: var(--ink-faint); }
 .book-note-text {
   margin: 8px 0 10px;
   font-family: var(--serif);
@@ -780,11 +782,11 @@ dialog.fullview { outline: none; }
   white-space: pre-wrap;
   word-break: keep-all;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.book-note.empty-note .book-note-head { margin-bottom: 8px; }
+.book-note.empty-note .book-note-text { color: var(--ink-faint); font-family: inherit; font-size: .92rem; }
 .book-items { list-style: none; margin: 8px 0 0; padding: 0; }
 .book-item { padding: 18px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
 .book-item:last-child { border-bottom: 0; }
@@ -864,8 +866,6 @@ dialog.fullview { outline: none; }
 .note-foot { margin: 10px 0 0; font-size: .8rem; color: var(--ink-faint); }
 .note-new { margin-top: 18px; }
 .note-new-fields { margin-top: 14px; }
-.note-date-field { margin-top: 16px; }
-.note-date-field input { max-width: 220px; min-height: 44px; }
 .note-body {
   width: 100%;
   min-height: 42vh;
@@ -877,7 +877,30 @@ dialog.fullview { outline: none; }
   word-break: keep-all;
 }
 .note-meta { margin: 8px 2px 0; }
-.note-meta-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+/* 감상문 창: 읽기 / 쓰기 */
+#note-dialog { --note-size: 1.2rem; }
+#note-dialog[data-size="1"] { --note-size: 1.35rem; }
+#note-dialog[data-size="2"] { --note-size: 1.55rem; }
+#note-dialog[data-mode="read"] .note-edit,
+#note-dialog[data-mode="read"] .mode-edit,
+#note-dialog[data-mode="edit"] .note-read,
+#note-dialog[data-mode="edit"] .mode-read { display: none !important; }
+.note-read { padding: 30px 6px 8px; }
+.note-read-text {
+  max-width: 34em;
+  font-family: var(--serif);
+  font-size: var(--note-size);
+  line-height: 2;
+  letter-spacing: -0.012em;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+.note-read-meta { margin: 28px 0 0; font-size: .8rem; color: var(--ink-faint); }
+.note-size { padding-left: 12px; padding-right: 12px; font-family: var(--serif); line-height: 1; }
+.note-size-big { font-size: 1.25em; margin-left: 1px; }
+.note-edit .note-body { margin-top: 16px; }
 .note-notice {
   display: flex;
   flex-wrap: wrap;
@@ -891,24 +914,6 @@ dialog.fullview { outline: none; }
   font-size: .88rem;
 }
 .note-notice span { flex: 1 1 200px; }
-.note-history { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
-.note-history-head { margin: 0 0 6px; font-size: .86rem; font-weight: 600; color: var(--ink-soft); }
-.note-history-list { list-style: none; margin: 0; padding: 0; }
-.note-history-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
-.note-history-list li:last-child { border-bottom: 0; }
-.note-history-when { font-size: .78rem; color: var(--ink-faint); }
-.note-history-text {
-  margin: 4px 0 8px;
-  font-family: var(--serif);
-  font-size: .95rem;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: keep-all;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
 
 /* 맨 아래 작은 로그아웃 */
 .app-footer { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 28px; }
