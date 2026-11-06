@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>감상문 되살리기</title>
+  <style>
+    :root { --ink: #1b1b1b; --soft: #5f5f5f; --faint: #9b9b9b; --line: #e8e8e5; --sunk: #f5f5f3; --paper: #ffffff; }
+    @media (prefers-color-scheme: dark) { :root { --ink: #f0f0f0; --soft: #b4b4b4; --faint: #7a7a7a; --line: #2e2e2e; --sunk: #242424; --paper: #121212; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+    h1 { font-size: 1.5rem; margin: 0 0 4px; }
+    .muted { color: var(--soft); }
+    .small { font-size: .88rem; }
+    ol li { margin: 6px 0; }
+    code { background: var(--sunk); padding: 1px 6px; border-radius: 6px; font-size: .86em; word-break: break-all; }
+    .pick { display: inline-block; margin: 14px 0 6px; padding: 12px 18px; border-radius: 10px; background: var(--ink); color: var(--paper); font-weight: 600; cursor: pointer; }
+    .pick input { display: none; }
+    .card { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 14px 0; }
+    .card h3 { margin: 0 0 4px; font-size: 1.05rem; }
+    .card .meta { font-size: .8rem; color: var(--faint); }
+    .card pre { white-space: pre-wrap; word-break: keep-all; font: inherit; margin: 10px 0; padding: 12px; background: var(--sunk); border-radius: 8px; }
+    .card button { font: inherit; font-size: .88rem; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer; }
+    #status { margin: 10px 0; }
+    details { margin: 10px 0; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>감상문 되살리기</h1>
+  <p class="muted small">컴퓨터 브라우저에 남아 있는 문장 수집창고의 옛 저장본에서 감상문을 찾아요. 파일은 이 화면 안에서만 읽고, 어디에도 보내지 않아요.</p>
+
+  <h2>1. 브라우저 저장 폴더 복사하기</h2>
+  <ol>
+    <li>문장 수집창고를 쓰던 브라우저(크롬 또는 엣지)를 <b>완전히 꺼요</b>. 설치한 앱 창도 닫아요.</li>
+    <li>파일 탐색기(맥은 Finder) 주소창에 아래 경로를 붙여넣고 엔터를 눌러요.
+      <details open><summary>윈도우</summary>
+        <p>크롬: <code>%LOCALAPPDATA%\Google\Chrome\User Data\Default\Local Storage\leveldb</code></p>
+        <p>엣지: <code>%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Local Storage\leveldb</code></p>
+      </details>
+      <details><summary>맥 (Finder → 이동 → 폴더로 이동)</summary>
+        <p>크롬: <code>~/Library/Application Support/Google/Chrome/Default/Local Storage/leveldb</code></p>
+        <p>엣지: <code>~/Library/Application Support/Microsoft Edge/Default/Local Storage/leveldb</code></p>
+      </details>
+      <p class="small muted">프로필을 여러 개 쓰면 <code>Default</code> 대신 <code>Profile 1</code> 같은 폴더일 수 있어요.</p>
+    </li>
+    <li><b>leveldb 폴더를 통째로 바탕화면에 복사</b>해요. 원본은 건드리지 않아요.</li>
+  </ol>
+
+  <h2>2. 복사한 폴더 고르기</h2>
+  <p class="small muted">이 화면은 다른 브라우저로 열어도 돼요. 아래 버튼을 누르고 바탕화면에 복사한 <b>leveldb 폴더</b>를 고르세요. (폴더를 고를 수 없으면 폴더 안 파일을 모두 선택하세요.)</p>
+  <label class="pick">폴더 고르기<input id="dir" type="file" webkitdirectory multiple></label>
+  <label class="pick" style="background:transparent;color:var(--ink);border:1px solid var(--line)">파일 고르기<input id="files" type="file" multiple></label>
+  <p id="status" class="muted"></p>
+  <div id="out"></div>
+</main>
+<script src="recover.js"></script>
+</body>
+</html>

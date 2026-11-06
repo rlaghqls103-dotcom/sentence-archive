@@ -137,3 +137,47 @@ begin
     alter publication supabase_realtime add table public.book_notes;
   end if;
 end $$;
+
+-- ───────────────────────────────────────────────
+-- 감상문 이전 버전 보관: 고치거나 지울 때마다 그 전 글을 자동으로 남겨요 (앱의 '이전 버전'에서 되돌리기)
+create table if not exists public.book_note_versions (
+  id          bigint generated always as identity primary key,
+  user_id     uuid not null references auth.users on delete cascade,
+  book_title  text not null,
+  body        text,
+  finished_on date,
+  saved_at    timestamptz,                         -- 그 글을 저장했던 때
+  replaced_at timestamptz not null default now(),  -- 바뀌거나 지워진 때
+  action      text not null                        -- 'update' | 'delete'
+);
+create index if not exists book_note_versions_user_title_idx
+  on public.book_note_versions (user_id, book_title, replaced_at desc);
+alter table public.book_note_versions enable row level security;
+
+-- 본인 것만 읽을 수 있고, 쓰기는 아래 트리거만 해요 (앱에서 고치거나 지울 수 없음)
+drop policy if exists "own note versions" on public.book_note_versions;
+create policy "own note versions" on public.book_note_versions
+  for select
+  using (auth.uid() = user_id);
+
+create or replace function public.keep_note_version()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if coalesce(old.body, '') <> ''
+     and (tg_op = 'DELETE' or old.body is distinct from new.body or old.finished_on is distinct from new.finished_on) then
+    insert into book_note_versions (user_id, book_title, body, finished_on, saved_at, action)
+    values (old.user_id, old.book_title, old.body, old.finished_on, old.updated_at, lower(tg_op));
+  end if;
+  return null;
+end $$;
+
+revoke all on function public.keep_note_version() from public, anon, authenticated;
+
+drop trigger if exists book_notes_keep_version on public.book_notes;
+create trigger book_notes_keep_version
+  after update or delete on public.book_notes
+  for each row execute function public.keep_note_version();

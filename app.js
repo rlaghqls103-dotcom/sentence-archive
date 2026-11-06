@@ -98,7 +98,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v26";
+  const APP_VERSION = "v27";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -1812,6 +1812,7 @@
     $("note-list").replaceChildren(...titles.map((t) => noteCard(t, counts.get(t) || 0)));
     $("notes-empty").hidden = titles.length > 0;
     $("notes-setup").hidden = !notesMissing;
+    noteRemoteChanged();
   }
 
   function noteCard(title, count) {
@@ -1865,25 +1866,76 @@
     paintBook($("note-band"), t);
     $("note-book").textContent = t ? `『${t}』${au ? " " + au : ""}` : "새 감상문";
   }
+  // 다른 기기와 겹쳐 쓰지 않게: 창을 연(또는 새로 받은) 감상문의 저장 시각을 기억해 둬요
+  let noteBase = null;
+  const tsOf = (iso) => (iso ? Date.parse(iso) || 0 : 0);
+  function hideNotice() { $("note-notice").hidden = true; }
+  function showNotice(text, label, action) {
+    $("note-notice-text").textContent = text;
+    const btn = $("note-notice-act");
+    btn.textContent = label;
+    btn.onclick = action;
+    $("note-notice").hidden = false;
+  }
+  function fillNoteFrom(n) {
+    $("note-finished").value = (n && n.finished_on) || "";
+    $("note-body").value = (n && n.body) || "";
+    $("note-delete").hidden = !n;
+    $("note-meta").textContent = n && n.updated_at ? fmtLongDate(new Date(n.updated_at)) + "에 고침" : "";
+    noteBase = n ? n.updated_at || null : null;
+    noteSnapshot = noteState();
+  }
+  function applyDraft(v) {
+    [$("note-title").value, $("note-author").value, $("note-finished").value, $("note-body").value] = v;
+    paintNoteBand();
+  }
   function openNote(title, fromEl) {
     noteTitle = title || null;
     const n = noteTitle ? notes.get(noteTitle) : null;
     $("note-new-fields").hidden = !!noteTitle;
     $("note-title").value = "";
     $("note-author").value = "";
-    $("note-finished").value = (n && n.finished_on) || "";
-    $("note-body").value = (n && n.body) || "";
-    $("note-delete").hidden = !n;
-    $("note-meta").textContent = n && n.updated_at ? fmtLongDate(new Date(n.updated_at)) + "에 고침" : "";
-    noteSnapshot = noteState();
-    // 쓰다 만 글이 있으면 이어서
-    const draft = store.get(noteDraftKey(), null);
-    if (Array.isArray(draft) && JSON.stringify(draft) !== noteSnapshot) {
-      [$("note-title").value, $("note-author").value, $("note-finished").value, $("note-body").value] = draft;
-      setTimeout(() => toast("쓰다 만 글을 불러왔어요"), 350);
+    fillNoteFrom(n);
+    hideNotice();
+    $("note-history").hidden = true;
+    $("note-history-btn").hidden = !noteTitle;
+    // 쓰다 만 글: 저장된 감상문이 그 뒤로 바뀌지 않았을 때만 이어서 보여줘요.
+    // (다른 기기에서 더 새로 저장했으면 새 내용을 먼저 보여주고, 쓰다 만 글은 눌러야 불러와요)
+    const raw = store.get(noteDraftKey(), null);
+    const draft = raw && Array.isArray(raw.v) ? raw : Array.isArray(raw) ? { base: undefined, v: raw } : null;
+    if (draft && JSON.stringify(draft.v) !== noteSnapshot) {
+      const fresh = draft.base === undefined ? !n : tsOf(draft.base) === tsOf(noteBase);
+      if (fresh) {
+        applyDraft(draft.v);
+        setTimeout(() => toast("쓰다 만 글을 불러왔어요"), 350);
+      } else {
+        showNotice("이 기기에 예전에 쓰다 만 글이 있어요. 지금 보이는 건 더 나중에 저장한 감상문이에요.", "쓰다 만 글 불러오기", () => {
+          if (!confirm("지금 보이는 감상문 대신 이 기기에 쓰다 만 글을 불러올까요? (저장하기 전까지는 바뀌지 않아요)")) return;
+          applyDraft(draft.v);
+          hideNotice();
+        });
+      }
     }
     paintNoteBand();
     openFull(noteDialog, fromEl);
+  }
+  // 다른 기기에서 감상문이 바뀌었을 때(실시간·다시 불러오기): 열려 있는 창도 맞춰요
+  function noteRemoteChanged() {
+    if (!noteDialog.open || !noteTitle) return;
+    const n = notes.get(noteTitle) || null;
+    if (tsOf(n && n.updated_at) === tsOf(noteBase)) return; // 바뀐 게 없음(내가 저장한 것 포함)
+    if (noteState() === noteSnapshot) {
+      fillNoteFrom(n);
+      hideNotice();
+      toast(n ? "다른 기기에서 고친 감상문으로 바꿨어요" : "다른 기기에서 이 감상문을 지웠어요");
+    } else {
+      showNotice(n ? "다른 기기에서 이 감상문을 고쳤어요. 지금 쓰는 글을 저장하면 그 내용을 덮어써요." : "다른 기기에서 이 감상문을 지웠어요.",
+        n ? "새 내용 불러오기" : "알겠어요", () => {
+          if (n && !confirm("지금 쓰던 글 대신 다른 기기에서 고친 감상문을 불러올까요?")) return;
+          if (n) { store.remove(noteDraftKey()); fillNoteFrom(notes.get(noteTitle) || null); }
+          hideNotice();
+        });
+    }
   }
   function closeNote(from = 0) {
     if (noteState() !== noteSnapshot) {
@@ -1899,8 +1951,63 @@
   $("note-author").addEventListener("input", paintNoteBand);
   $("note-form").addEventListener("input", () => {
     const s = noteState();
-    if (s === noteSnapshot) store.remove(noteDraftKey()); else store.set(noteDraftKey(), JSON.parse(s));
+    if (s === noteSnapshot) store.remove(noteDraftKey()); else store.set(noteDraftKey(), { base: noteBase, v: JSON.parse(s) });
   });
+
+  // ---------- 이전 버전 (서버의 book_note_versions) ----------
+  async function showNoteHistory() {
+    const title = noteTitle;
+    if (!title) return;
+    const box = $("note-history"), list = $("note-history-list");
+    if (!box.hidden) { box.hidden = true; return; }
+    const { data, error } = await sb.from("book_note_versions")
+      .select("book_title,body,finished_on,saved_at,replaced_at,action")
+      .eq("book_title", title)
+      .order("replaced_at", { ascending: false })
+      .limit(30);
+    if (error) {
+      toast(/book_note_versions|schema cache|does not exist|relation/i.test(error.message || "")
+        ? "이전 버전을 보관하려면 Supabase에서 schema.sql을 다시 실행해 주세요."
+        : "이전 버전을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.");
+      return;
+    }
+    const rows = (data || []).filter((r) => r && r.book_title === title && r.body)
+      .sort((a, b) => tsOf(b.replaced_at) - tsOf(a.replaced_at));
+    list.replaceChildren();
+    if (!rows.length) {
+      const li = document.createElement("li");
+      li.className = "muted small";
+      li.textContent = "아직 보관된 이전 버전이 없어요. 감상문을 고치거나 지우면 그 전 글이 여기에 남아요.";
+      list.append(li);
+    }
+    for (const r of rows) {
+      const li = document.createElement("li");
+      const when = document.createElement("div");
+      when.className = "note-history-when";
+      const t = r.saved_at || r.replaced_at;
+      when.textContent = `${fmtLongDate(new Date(t))} ${new Date(t).toTimeString().slice(0, 5)}에 저장한 글` + (r.action === "delete" ? " · 지우기 전" : "");
+      const p = document.createElement("p");
+      p.className = "note-history-text";
+      p.textContent = r.body;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn ghost small";
+      btn.textContent = "이 글로 되돌리기";
+      btn.addEventListener("click", () => {
+        if (noteState() !== noteSnapshot && !confirm("지금 쓰던 글 대신 이 버전을 불러올까요?")) return;
+        $("note-body").value = r.body;
+        $("note-finished").value = r.finished_on || "";
+        $("note-form").dispatchEvent(new Event("input"));
+        box.hidden = true;
+        $("note-body").scrollIntoView({ block: "center" });
+        toast("불러왔어요. [저장]을 누르면 이 글로 바뀌어요");
+      });
+      li.append(when, p, btn);
+      list.append(li);
+    }
+    box.hidden = false;
+  }
+  $("note-history-btn").addEventListener("click", showNoteHistory);
 
   $("note-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1910,18 +2017,37 @@
     const finished = $("note-finished").value || null;
     if (!body && !finished) { toast("감상문을 적어 주세요"); $("note-body").focus(); return; }
     if (!noteTitle && notes.has(title) && !confirm(`『${title}』에는 이미 감상문이 있어요. 새 글로 바꿀까요?`)) return;
+    const btn = $("note-save");
+    btn.disabled = true;
+    // 저장 직전에 서버의 지금 내용을 확인해서, 다른 기기에서 더 나중에 고쳤으면 덮어쓰기 전에 물어봐요
+    if (noteTitle) {
+      const { data: rows, error: checkError } = await sb.from("book_notes").select("book_title,body,finished_on,updated_at").eq("book_title", title);
+      const cur = !checkError && Array.isArray(rows) ? rows.find((r) => r && r.book_title === title) : null;
+      if (cur && tsOf(cur.updated_at) > tsOf(noteBase) && (cur.body || "") !== body) {
+        notes.set(title, { body: cur.body || "", finished_on: cur.finished_on || null, updated_at: cur.updated_at || null });
+        saveNotesCache();
+        const when = cur.updated_at ? fmtLongDate(new Date(cur.updated_at)) + " " + new Date(cur.updated_at).toTimeString().slice(0, 5) : "";
+        if (!confirm(`다른 기기에서 ${when}에 이 감상문을 고쳤어요.\n\n지금 쓴 글로 덮어쓸까요?\n(덮어쓴 감상문은 '이전 버전'에서 다시 볼 수 있어요)`)) {
+          btn.disabled = false;
+          render();
+          noteRemoteChanged();
+          return;
+        }
+      }
+    }
     const prev = notes.get(title);
+    const prevBase = noteBase;
     const row = { body, finished_on: finished, updated_at: new Date().toISOString() };
+    noteBase = row.updated_at; // 내가 저장한 것은 '다른 기기에서 바뀜'으로 보지 않게
     notes.set(title, row);
     saveNotesCache();
     render();
-    const btn = $("note-save");
-    btn.disabled = true;
     const { error } = await sb.from("book_notes")
       .upsert({ user_id: user.id, book_title: title, ...row }, { onConflict: "user_id,book_title" });
     btn.disabled = false;
     if (error) {
       if (prev) notes.set(title, prev); else notes.delete(title);
+      noteBase = prevBase;
       saveNotesCache();
       if (isMissingTable(error)) notesMissing = true;
       render();
@@ -1945,7 +2071,7 @@
 
   $("note-delete").addEventListener("click", async () => {
     const title = noteTitle;
-    if (!title || !confirm(`『${title}』 감상문을 지울까요? 되돌릴 수 없어요.`)) return;
+    if (!title || !confirm(`『${title}』 감상문을 지울까요?\n(지운 감상문은 '이전 버전'에서 다시 볼 수 있어요)`)) return;
     const { error } = await sb.from("book_notes").delete().eq("book_title", title);
     if (error) { toast("지우지 못했어요. 인터넷 연결을 확인해 주세요."); return; }
     notes.delete(title);

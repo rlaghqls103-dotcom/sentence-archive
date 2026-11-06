@@ -22,7 +22,7 @@
   <!-- 로그인 토큰·문장 동기화 서버에 미리 연결 -->
   <link rel="preconnect" href="https://tfbgowfwrwosqywemrhp.supabase.co" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@kfonts/maruburi@0.1.0/index.css">
-  <link rel="stylesheet" href="styles.css?v=26">
+  <link rel="stylesheet" href="styles.css?v=27">
 </head>
 <body>
   <!-- 시작 화면: 앱이 준비되기 전 잠깐 보여요 -->
@@ -331,12 +331,24 @@
               <input id="note-author" type="text" list="author-list" autocomplete="off" placeholder="예) 헤르만 헤세">
             </label>
           </div>
+          <!-- 다른 기기에서 바뀌었을 때 / 예전에 쓰다 만 글이 있을 때 안내 -->
+          <div id="note-notice" class="note-notice" role="status" hidden>
+            <span id="note-notice-text"></span>
+            <button id="note-notice-act" class="btn soft small" type="button"></button>
+          </div>
           <label class="field note-date-field">
             <span>다 읽은 날 <span class="muted">(선택)</span></span>
             <input id="note-finished" type="date">
           </label>
           <textarea id="note-body" class="note-body" rows="10" placeholder="이 책을 읽고 남은 생각을 자유롭게 적어 보세요."></textarea>
-          <p id="note-meta" class="muted small note-meta"></p>
+          <div class="note-meta-row">
+            <p id="note-meta" class="muted small note-meta"></p>
+            <button id="note-history-btn" class="btn link small" type="button" hidden>이전 버전</button>
+          </div>
+          <div id="note-history" class="note-history" hidden>
+            <p class="note-history-head">이전 버전 <span class="muted small">고치거나 지우기 전의 글이 서버에 보관돼요</span></p>
+            <ul id="note-history-list" class="note-history-list"></ul>
+          </div>
         </div>
       </div>
       <div class="full-actions">
@@ -424,8 +436,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script defer src="config.js?v=26"></script>
+  <script defer src="config.js?v=27"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script defer src="app.js?v=26"></script>
+  <script defer src="app.js?v=27"></script>
 </body>
 </html>

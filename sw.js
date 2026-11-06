@@ -3,7 +3,7 @@
    새 버전은 이 파일(sw.js)이 바뀌면 브라우저가 알아서 받아 오고, 앱이 한 번 새로고침돼요.
    ⚠️ 앱 파일을 고치면 V 를 올리고, index.html 의 ?v= 와 app.js 의 APP_VERSION 도 같은 숫자로 맞춰요. */
 
-const V = 26;
+const V = 27;
 const CACHE = "sentence-archive-v" + V;
 // 페이지가 실제로 요청하는 주소 그대로 (?v= 포함). 주소가 정확히 같을 때만 저장본을 써서 옛 파일과 섞이지 않아요.
 const SHELL = [
@@ -49,7 +49,9 @@ self.addEventListener("fetch", (event) => {
     if (url.pathname.endsWith("/sw.js")) return; // 서비스워커 파일은 브라우저가 직접 확인
 
     // 앱 열기(화면 이동): 저장된 index.html 로 바로. 없을 때(처음 설치 중)만 인터넷
-    if (req.mode === "navigate") {
+    // (recover.html 같은 다른 페이지는 아래에서 따로 받아요)
+    const scope = new URL(self.registration.scope).pathname;
+    if (req.mode === "navigate" && (url.pathname === scope || url.pathname === scope + "index.html")) {
       event.respondWith(
         appShell().then((hit) => hit || fetch(req).catch(() => new Response("오프라인이에요", { status: 503 })))
       );
