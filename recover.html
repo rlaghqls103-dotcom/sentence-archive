@@ -33,16 +33,19 @@
 
   <h2>1. 브라우저 저장 폴더 복사하기</h2>
   <ol>
-    <li>문장 수집창고를 쓰던 브라우저(크롬 또는 엣지)를 <b>완전히 꺼요</b>. 설치한 앱 창도 닫아요.</li>
+    <li>문장 수집창고를 쓰던 브라우저(웨일·크롬·엣지)를 <b>완전히 꺼요</b>. 설치한 앱 창도 닫아요.</li>
     <li>파일 탐색기(맥은 Finder) 주소창에 아래 경로를 붙여넣고 엔터를 눌러요.
       <details open><summary>윈도우</summary>
         <p>크롬: <code>%LOCALAPPDATA%\Google\Chrome\User Data\Default\Local Storage\leveldb</code></p>
         <p>엣지: <code>%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Local Storage\leveldb</code></p>
+        <p>웨일: <code>%LOCALAPPDATA%\Naver\Naver Whale\User Data\Default\Local Storage\leveldb</code></p>
       </details>
       <details><summary>맥 (Finder → 이동 → 폴더로 이동)</summary>
         <p>크롬: <code>~/Library/Application Support/Google/Chrome/Default/Local Storage/leveldb</code></p>
         <p>엣지: <code>~/Library/Application Support/Microsoft Edge/Default/Local Storage/leveldb</code></p>
+        <p>웨일: <code>~/Library/Application Support/Naver/Whale/Default/Local Storage/leveldb</code></p>
       </details>
+      <p class="small muted">경로가 안 열리면: 그 브라우저 주소창에 <code>whale://version</code>(크롬은 <code>chrome://version</code>, 엣지는 <code>edge://version</code>)을 열고 <b>프로필 경로</b>에 적힌 폴더로 가서, 그 안의 <code>Local Storage\leveldb</code> 폴더를 쓰세요.</p>
       <p class="small muted">프로필을 여러 개 쓰면 <code>Default</code> 대신 <code>Profile 1</code> 같은 폴더일 수 있어요.</p>
     </li>
     <li><b>leveldb 폴더를 통째로 바탕화면에 복사</b>해요. 원본은 건드리지 않아요.</li>
