@@ -92,7 +92,7 @@
   margin: 0;
 }
 .file-btn:focus-within { box-shadow: 0 0 0 3px var(--accent-wash); }
-.app-version { font-size: .7rem; color: var(--ink-faint); letter-spacing: .02em; }
+.app-version { font-size: .7rem; color: var(--ink-faint); letter-spacing: .02em; cursor: pointer; padding: 6px 2px; }
 
 html { -webkit-text-size-adjust: 100%; }
 

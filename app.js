@@ -98,27 +98,74 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v29";
+  const APP_VERSION = "v30";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
+  // 아이폰 홈 화면 앱은 서비스워커 갱신을 자주 놓쳐서, 앱이 직접 서버의 최신 버전 번호(sw.js 의 V)를 확인해요.
+  // 더 새 버전이 있으면 갱신을 부탁하고, 몇 초 안에 안 바뀌면 앱 파일 저장본을 비우고 다시 열어요.
+  const CURRENT_V = parseInt(APP_VERSION.slice(1), 10);
+  let swReg = null, reloaded = false, pendingReload = false, checking = false;
+  // 글을 쓰는 중(창이 열려 있거나 입력칸에 커서)이면 새로고침을 미뤄요 — 앱을 내렸다 다시 올릴 때 바꿔요
+  const busy = () => !!document.querySelector("dialog[open]") ||
+    !!(document.activeElement && document.activeElement.matches && document.activeElement.matches("input, textarea"));
+  function safeReload() {
+    if (reloaded) return;
+    if (busy()) { pendingReload = true; return; }
+    reloaded = true;
+    location.reload();
+  }
+  async function checkForUpdate(manual = false) {
+    if (checking || !navigator.onLine) return;
+    checking = true;
+    try {
+      const res = await fetch("sw.js?check=" + Date.now(), { cache: "no-store" });
+      if (!res.ok) return;
+      const m = (await res.text()).match(/const V = (\d+);/);
+      const latest = m ? +m[1] : 0;
+      if (!latest || latest <= CURRENT_V) { if (manual) toast(`최신 버전(${APP_VERSION})이에요`); return; }
+      const tried = store.get("updateTried", null);
+      if (!manual && tried && tried.v === latest && Date.now() - tried.t < 5 * 60 * 1000) {
+        toast(`새 버전(v${latest})이 있어요. 앱을 완전히 닫았다가 다시 열어 주세요`);
+        return;
+      }
+      store.set("updateTried", { v: latest, t: Date.now() });
+      toast(`새 버전(v${latest})으로 바꾸는 중이에요…`);
+      if (swReg) { try { await swReg.update(); } catch { /* 아래에서 다시 시도 */ } }
+      await new Promise((r) => setTimeout(r, 4000)); // 서비스워커가 바뀌면 controllerchange 에서 새로고침돼요
+      if (reloaded || pendingReload) return;
+      if (busy()) { pendingReload = true; return; }
+      // 서비스워커가 바뀌지 않았으면: 앱 파일 저장본(글꼴·라이브러리는 남김)과 서비스워커를 지우고 새로 열기
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => k.startsWith("sentence-archive-")).map((k) => caches.delete(k)));
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+      reloaded = true;
+      location.reload();
+    } catch { /* 인터넷이 없거나 실패하면 다음에 다시 확인 */ } finally { checking = false; }
+  }
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", async () => {
       try {
         const hadController = !!navigator.serviceWorker.controller;
-        const reg = await navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
-        let reloaded = false;
+        swReg = await navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
         navigator.serviceWorker.addEventListener("controllerchange", () => {
           // 처음 설치될 때는 새로고침하지 않고, 이미 쓰던 앱이 새 버전으로 바뀔 때만
-          if (!hadController || reloaded) return;
-          reloaded = true;
-          location.reload();
-        });
-        document.addEventListener("visibilitychange", () => {
-          if (document.visibilityState === "visible") reg.update().catch(() => {});
+          if (hadController) safeReload();
         });
       } catch { /* 서비스워커 없이도 앱은 동작해요 */ }
+      setTimeout(() => checkForUpdate(), 1500);
     });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        if (pendingReload && !reloaded) { reloaded = true; location.reload(); } // 앱을 내렸을 때 조용히 바꿔요
+        return;
+      }
+      if (swReg) swReg.update().catch(() => {});
+      checkForUpdate();
+    });
+    // 버전 글자를 누르면 바로 확인
+    $("app-version").addEventListener("click", () => checkForUpdate(true));
   }
 
   if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {

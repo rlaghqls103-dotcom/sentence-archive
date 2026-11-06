@@ -3,7 +3,7 @@
    새 버전은 이 파일(sw.js)이 바뀌면 브라우저가 알아서 받아 오고, 앱이 한 번 새로고침돼요.
    ⚠️ 앱 파일을 고치면 V 를 올리고, index.html 의 ?v= 와 app.js 의 APP_VERSION 도 같은 숫자로 맞춰요. */
 
-const V = 29;
+const V = 30;
 const CACHE = "sentence-archive-v" + V;
 // 페이지가 실제로 요청하는 주소 그대로 (?v= 포함). 주소가 정확히 같을 때만 저장본을 써서 옛 파일과 섞이지 않아요.
 const SHELL = [
