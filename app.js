@@ -98,7 +98,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v32";
+  const APP_VERSION = "v33";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -306,7 +306,9 @@
       const changes = {};
       if (emailChange) changes.email = newEmail;
       if (pw) changes.password = pw;
-      const { data, error } = await sb.auth.updateUser(changes);
+      // 확인 메일의 링크를 누르면 이 앱 주소로 돌아오게 (Supabase 의 Redirect URLs 에 앱 주소가 있어야 해요)
+      const appUrl = location.origin + location.pathname;
+      const { data, error } = await sb.auth.updateUser(changes, emailChange ? { emailRedirectTo: appUrl } : undefined);
       if (error) {
         const m = error.message || "";
         accountMsg(/already been registered|already registered|exists/i.test(m) ? "이미 다른 계정이 쓰는 이메일이에요."
@@ -318,7 +320,9 @@
       const pending = emailChange && data && data.user && data.user.new_email && data.user.email !== newEmail;
       const parts = [];
       if (pw) parts.push("비밀번호를 바꿨어요");
-      if (emailChange) parts.push(pending ? `${newEmail} 로 확인 메일을 보냈어요. 메일의 링크를 누르면 이메일이 바뀌어요` : `이제 ${newEmail} 로 로그인해요`);
+      if (emailChange) parts.push(pending
+        ? `확인 메일을 보냈어요. 새 이메일(${newEmail})과 지금 이메일(${curEmail}) 두 메일함에 온 링크를 모두 누르면 바뀌어요`
+        : `이제 ${newEmail} 로 로그인해요`);
       accountMsg(parts.join(". ") + ".", true);
       $("account-current").textContent = (user && user.email) || curEmail;
       $("account-username").value = (user && user.email) || curEmail;
@@ -335,6 +339,19 @@
     if (!confirm("로그아웃할까요?")) return;
     await sb.auth.signOut();
   });
+
+  // 확인 메일 링크를 눌러 돌아왔을 때: 주소에 붙은 안내를 한국어로 보여주고 주소를 깨끗이
+  (function linkNotice() {
+    const params = new URLSearchParams((location.hash || "").replace(/^#/, "") + "&" + (location.search || "").replace(/^\?/, ""));
+    const message = params.get("message"), err = params.get("error_description") || params.get("error");
+    if (!message && !err && params.get("type") !== "email_change") return;
+    let text = "";
+    if (err) text = /expired|invalid/i.test(err) ? "메일 링크가 만료됐거나 이미 쓴 링크예요. 계정 설정에서 다시 시도해 주세요." : "메일 링크를 처리하지 못했어요: " + err;
+    else if (message && /other email/i.test(message)) text = "확인됐어요. 다른 메일함(바꾸기 전 이메일 또는 새 이메일)에 온 확인 링크도 눌러 주세요.";
+    else text = "이메일을 바꿨어요. 다음부터 새 이메일로 로그인해요.";
+    setTimeout(() => toast(text), 800);
+    setTimeout(() => { try { history.replaceState(null, "", location.pathname); } catch { /* 무시 */ } }, 1500);
+  })();
 
   let started = false;
   sb.auth.onAuthStateChange((_event, session) => {
