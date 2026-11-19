@@ -98,7 +98,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v34";
+  const APP_VERSION = "v35";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -900,6 +900,24 @@
   // ---------- 문장 담기 ----------
 
   const content = $("compose-content");
+  // 문장 칸: 넉넉하게 시작해서, 긴 문장을 넣으면 글에 맞춰 늘어나요 (화면의 60%까지, 그 뒤로는 칸 안에서 스크롤)
+  function autoGrow() {
+    const max = Math.round(window.innerHeight * 0.6);
+    content.style.height = "auto";
+    const want = content.scrollHeight + 2;
+    content.style.height = Math.min(want, max) + "px";
+    content.style.overflowY = want > max ? "auto" : "hidden";
+  }
+  content.addEventListener("input", autoGrow);
+  window.addEventListener("resize", autoGrow);
+  // 붙여넣기·줄 합치기·사진 인식처럼 코드가 내용을 바꿀 때도 맞춰요
+  const textareaValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+  Object.defineProperty(content, "value", {
+    configurable: true,
+    get() { return textareaValue.get.call(this); },
+    set(v) { textareaValue.set.call(this, v); requestAnimationFrame(autoGrow); },
+  });
+  requestAnimationFrame(autoGrow);
   const bookInput = $("compose-book");
   const pageInput = $("compose-page");
   // 책 제목 칸 옆 점: 적는 대로 그 책의 색을 보여줘요
@@ -1885,7 +1903,7 @@
     const hasNote = !!(note && note.body);
     $("book-note-text").textContent = hasNote ? note.body : "아직 감상문이 없어요. 눌러서 써 보세요.";
     $("book-note-hint").textContent = hasNote ? "크게 보기 ›" : "쓰기 ›";
-    $("book-note-date").textContent = note && note.finished_on ? `${fmtDay(note.finished_on)} 다 읽음` : "";
+    $("book-note-date").textContent = note && note.finished_on ? `${fmtDay(note.finished_on)} 읽기를 마침` : "";
     $("book-note").classList.toggle("empty-note", !hasNote);
     $("book-note").setAttribute("aria-label", hasNote ? `『${t}』 감상문 크게 보기` : `『${t}』 감상문 쓰기`);
     // 문장들
@@ -1982,7 +2000,7 @@
     else { p.classList.add("placeholder"); p.textContent = "아직 감상문이 없어요 · 눌러서 쓰기"; }
     const foot = document.createElement("p");
     foot.className = "note-foot";
-    foot.textContent = [count ? `문장 ${count}개` : "", n && n.finished_on ? `${fmtDay(n.finished_on)} 다 읽음` : ""].filter(Boolean).join(" · ");
+    foot.textContent = [count ? `문장 ${count}개` : "", n && n.finished_on ? `${fmtDay(n.finished_on)} 읽기를 마침` : ""].filter(Boolean).join(" · ");
     body.append(p);
     if (foot.textContent) body.append(foot);
     li.append(band, body);
@@ -2024,8 +2042,8 @@
     $("note-body").value = (n && n.body) || "";
     $("note-delete").hidden = !n;
     $("note-finished").value = (n && n.finished_on) || "";
-    // 고친 날 대신 다 읽은 날을 보여줘요
-    const when = n && n.finished_on ? fmtLongDate(new Date(n.finished_on + "T00:00:00")) + "에 다 읽음" : "";
+    // 고친 날 대신 읽기를 마친 날을 보여줘요
+    const when = n && n.finished_on ? fmtLongDate(new Date(n.finished_on + "T00:00:00")) + " 읽기를 마침" : "";
     $("note-meta").textContent = "";
     $("note-read-text").textContent = (n && n.body) || "";
     $("note-read-meta").textContent = when;

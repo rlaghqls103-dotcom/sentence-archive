@@ -320,7 +320,8 @@ textarea { resize: vertical; }
   font-size: 17px;
   line-height: 1.85;
   letter-spacing: -0.01em;
-  min-height: 7.5em;
+  min-height: 12em;          /* 약 6줄 — 긴 문장은 글에 맞춰 더 늘어나요 */
+  resize: none;
   background: var(--paper);
 }
 
