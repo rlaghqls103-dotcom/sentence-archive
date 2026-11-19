@@ -22,7 +22,7 @@
   <!-- 로그인 토큰·문장 동기화 서버에 미리 연결 -->
   <link rel="preconnect" href="https://tfbgowfwrwosqywemrhp.supabase.co" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@kfonts/maruburi@0.1.0/index.css">
-  <link rel="stylesheet" href="styles.css?v=33">
+  <link rel="stylesheet" href="styles.css?v=34">
 </head>
 <body>
   <!-- 시작 화면: 앱이 준비되기 전 잠깐 보여요 -->
@@ -300,7 +300,7 @@
           <!-- 감상문: 누르면 화면 전체로 크게 -->
           <div id="book-note" class="book-note" role="button" tabindex="0">
             <div class="book-note-head">
-              <span class="book-note-label">감상문</span>
+              <span class="book-note-label">감상문<span id="book-note-date" class="book-note-date"></span></span>
               <span id="book-note-hint" class="book-note-hint">크게 보기 ›</span>
             </div>
             <p id="book-note-text" class="book-note-text"></p>
@@ -347,6 +347,15 @@
               </label>
             </div>
             <textarea id="note-body" class="note-body" rows="12" placeholder="이 책을 읽고 남은 생각을 자유롭게 적어 보세요."></textarea>
+            <!-- 다 읽은 날: 감상문 카드에 보여요 -->
+            <div class="field note-finished-field">
+              <label for="note-finished">다 읽은 날 <span class="muted">(선택)</span></label>
+              <div class="note-finished-row">
+                <input id="note-finished" type="date">
+                <button id="note-finished-today" class="btn ghost small" type="button">오늘</button>
+                <button id="note-finished-clear" class="btn link small" type="button">비우기</button>
+              </div>
+            </div>
             <p id="note-meta" class="muted small note-meta"></p>
           </div>
         </div>
@@ -471,8 +480,8 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script defer src="config.js?v=33"></script>
+  <script defer src="config.js?v=34"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
-  <script defer src="app.js?v=33"></script>
+  <script defer src="app.js?v=34"></script>
 </body>
 </html>

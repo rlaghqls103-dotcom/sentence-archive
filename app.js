@@ -98,7 +98,7 @@
   }
 
   // 앱 버전: 홈 화면 앱이 최신인지 화면에서 확인할 수 있어요
-  const APP_VERSION = "v33";
+  const APP_VERSION = "v34";
   $("app-version").textContent = APP_VERSION;
 
   // 서비스워커: 새 버전이 배포되면 알아서 받아서 한 번 새로고침해요
@@ -1885,6 +1885,7 @@
     const hasNote = !!(note && note.body);
     $("book-note-text").textContent = hasNote ? note.body : "아직 감상문이 없어요. 눌러서 써 보세요.";
     $("book-note-hint").textContent = hasNote ? "크게 보기 ›" : "쓰기 ›";
+    $("book-note-date").textContent = note && note.finished_on ? `${fmtDay(note.finished_on)} 다 읽음` : "";
     $("book-note").classList.toggle("empty-note", !hasNote);
     $("book-note").setAttribute("aria-label", hasNote ? `『${t}』 감상문 크게 보기` : `『${t}』 감상문 쓰기`);
     // 문장들
@@ -1942,8 +1943,13 @@
 
   function renderNotes() {
     const counts = new Map(bookStats());
+    // 다 읽은 날이 최근인 책부터, 다 읽은 날이 없는 감상문은 그 뒤에 (최근에 쓴 순)
     const written = [...notes.entries()]
-      .sort((a, b) => ((b[1].updated_at || "") > (a[1].updated_at || "") ? 1 : -1))
+      .sort((a, b) => {
+        const fa = a[1].finished_on || "", fb = b[1].finished_on || "";
+        if (fa !== fb) return fa && fb ? (fb > fa ? 1 : -1) : fa ? -1 : 1;
+        return (b[1].updated_at || "") > (a[1].updated_at || "") ? 1 : -1;
+      })
       .map(([t]) => t);
     const unwritten = [...counts.entries()].filter(([t]) => !notes.has(t)).sort((a, b) => b[1] - a[1]).map(([t]) => t);
     const titles = [...written, ...unwritten];
@@ -1976,7 +1982,7 @@
     else { p.classList.add("placeholder"); p.textContent = "아직 감상문이 없어요 · 눌러서 쓰기"; }
     const foot = document.createElement("p");
     foot.className = "note-foot";
-    foot.textContent = [count ? `문장 ${count}개` : "", n && n.updated_at ? `${fmtDate(n.updated_at)} 고침` : ""].filter(Boolean).join(" · ");
+    foot.textContent = [count ? `문장 ${count}개` : "", n && n.finished_on ? `${fmtDay(n.finished_on)} 다 읽음` : ""].filter(Boolean).join(" · ");
     body.append(p);
     if (foot.textContent) body.append(foot);
     li.append(band, body);
@@ -1989,9 +1995,13 @@
   let noteTitle = null;     // 고르고 연 책 (새 책이면 null)
   let noteSnapshot = "";    // 연 순간의 내용 (바뀌었는지 비교)
   const noteDraftKey = () => "noteDraft:" + (noteTitle || "");
-  const noteState = () => JSON.stringify([$("note-title").value.trim(), $("note-author").value.trim(), $("note-body").value]);
-  // 예전 쓰다 만 글은 [제목, 작가, 다 읽은 날, 글] 모양이었어요
-  const draftValues = (v) => (v.length === 4 ? [v[0], v[1], v[3]] : v);
+  const noteFields = () => ({ t: $("note-title").value.trim(), a: $("note-author").value.trim(), b: $("note-body").value, f: $("note-finished").value });
+  const noteState = () => JSON.stringify(noteFields());
+  // 쓰다 만 글 모양 맞추기: 예전엔 [제목, 작가, 다 읽은 날, 글] 또는 [제목, 작가, 글] 배열이었어요
+  const draftValues = (v) => {
+    if (Array.isArray(v)) return v.length === 4 ? { t: v[0] || "", a: v[1] || "", b: v[3] || "", f: v[2] || "" } : { t: v[0] || "", a: v[1] || "", b: v[2] || "", f: "" };
+    return { t: v.t || "", a: v.a || "", b: v.b || "", f: v.f || "" };
+  };
   function currentNoteTitle() { return noteTitle || $("note-title").value.trim(); }
   function paintNoteBand() {
     const t = currentNoteTitle();
@@ -2013,17 +2023,23 @@
   function fillNoteFrom(n) {
     $("note-body").value = (n && n.body) || "";
     $("note-delete").hidden = !n;
-    const when = n && n.updated_at ? fmtLongDate(new Date(n.updated_at)) + "에 고침" : "";
-    $("note-meta").textContent = when;
+    $("note-finished").value = (n && n.finished_on) || "";
+    // 고친 날 대신 다 읽은 날을 보여줘요
+    const when = n && n.finished_on ? fmtLongDate(new Date(n.finished_on + "T00:00:00")) + "에 다 읽음" : "";
+    $("note-meta").textContent = "";
     $("note-read-text").textContent = (n && n.body) || "";
     $("note-read-meta").textContent = when;
     noteBase = n ? n.updated_at || null : null;
     noteSnapshot = noteState();
   }
   function applyDraft(v) {
-    [$("note-title").value, $("note-author").value, $("note-body").value] = draftValues(v);
+    const d = draftValues(v);
+    $("note-title").value = d.t; $("note-author").value = d.a; $("note-body").value = d.b; $("note-finished").value = d.f;
     paintNoteBand();
   }
+  const todayYmd = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+  $("note-finished-today").addEventListener("click", () => { $("note-finished").value = todayYmd(); $("note-form").dispatchEvent(new Event("input")); });
+  $("note-finished-clear").addEventListener("click", () => { $("note-finished").value = ""; $("note-form").dispatchEvent(new Event("input")); });
   // 읽기(크게 보기) ↔ 쓰기
   function setNoteMode(mode) {
     noteDialog.dataset.mode = mode;
@@ -2060,7 +2076,7 @@
     // (다른 기기에서 더 새로 저장했으면 새 내용을 먼저 보여주고, 쓰다 만 글은 눌러야 불러와요)
     const raw = store.get(noteDraftKey(), null);
     const draft = raw && Array.isArray(raw.v) ? raw : Array.isArray(raw) ? { base: undefined, v: raw } : null;
-    if (draft && JSON.stringify(draft.v) !== noteSnapshot) {
+    if (draft && JSON.stringify(draftValues(draft.v)) !== noteSnapshot) {
       const fresh = draft.base === undefined ? !n : tsOf(draft.base) === tsOf(noteBase);
       if (fresh) {
         applyDraft(draft.v);
@@ -2124,6 +2140,7 @@
     if (!title) { toast("책 제목을 적어 주세요"); $("note-title").focus(); return; }
     const body = smartQuotes($("note-body").value.trim());
     if (!body) { toast("감상문을 적어 주세요"); $("note-body").focus(); return; }
+    const finished = $("note-finished").value || "";
     if (!noteTitle && notes.has(title) && !confirm(`『${title}』에는 이미 감상문이 있어요. 새 글로 바꿀까요?`)) return;
     const btn = $("note-save");
     btn.disabled = true;
@@ -2131,7 +2148,7 @@
     if (noteTitle) {
       const { data: rows, error: checkError } = await sb.from("book_notes").select("book_title,body,finished_on,updated_at").eq("book_title", title);
       const cur = !checkError && Array.isArray(rows) ? rows.find((r) => r && r.book_title === title) : null;
-      if (cur && tsOf(cur.updated_at) > tsOf(noteBase) && (cur.body || "") !== body) {
+      if (cur && tsOf(cur.updated_at) > tsOf(noteBase) && ((cur.body || "") !== body || (cur.finished_on || "") !== finished)) {
         notes.set(title, { body: cur.body || "", finished_on: cur.finished_on || null, updated_at: cur.updated_at || null });
         saveNotesCache();
         const when = cur.updated_at ? fmtLongDate(new Date(cur.updated_at)) + " " + new Date(cur.updated_at).toTimeString().slice(0, 5) : "";
@@ -2145,14 +2162,13 @@
     }
     const prev = notes.get(title);
     const prevBase = noteBase;
-    // 다 읽은 날(finished_on)은 더 이상 적지 않아요 — 예전에 적은 값은 서버에 그대로 둬요
-    const row = { body, finished_on: prev ? prev.finished_on || null : null, updated_at: new Date().toISOString() };
+    const row = { body, finished_on: finished || null, updated_at: new Date().toISOString() };
     noteBase = row.updated_at; // 내가 저장한 것은 '다른 기기에서 바뀜'으로 보지 않게
     notes.set(title, row);
     saveNotesCache();
     render();
     const { error } = await sb.from("book_notes")
-      .upsert({ user_id: user.id, book_title: title, body: row.body, updated_at: row.updated_at }, { onConflict: "user_id,book_title" });
+      .upsert({ user_id: user.id, book_title: title, body: row.body, finished_on: row.finished_on, updated_at: row.updated_at }, { onConflict: "user_id,book_title" });
     btn.disabled = false;
     if (error) {
       if (prev) notes.set(title, prev); else notes.delete(title);

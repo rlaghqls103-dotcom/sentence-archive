@@ -901,6 +901,11 @@ dialog.fullview { outline: none; }
 .note-size { padding-left: 12px; padding-right: 12px; font-family: var(--serif); line-height: 1; }
 .note-size-big { font-size: 1.25em; margin-left: 1px; }
 .note-edit .note-body { margin-top: 16px; }
+.note-finished-field { margin-top: 16px; }
+.note-finished-field > label { font-size: .8rem; font-weight: 600; color: var(--ink-soft); letter-spacing: .02em; }
+.note-finished-row { display: flex; align-items: center; gap: 8px; }
+.note-finished-row input { max-width: 200px; min-height: 44px; }
+.book-note-date { font-weight: 400; color: var(--ink-faint); margin-left: 8px; }
 .note-notice {
   display: flex;
   flex-wrap: wrap;
